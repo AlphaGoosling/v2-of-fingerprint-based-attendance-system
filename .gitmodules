@@ -1,0 +1,12 @@
+[submodule "components/arduino"]
+	path = components/arduino
+	url = https://github.com/espressif/arduino-esp32.git
+[submodule "components/Adafruit-Fingerprint-Sensor-Library"]
+	path = components/Adafruit-Fingerprint-Sensor-Library
+	url = https://github.com/adafruit/Adafruit-Fingerprint-Sensor-Library.git
+[submodule "components/TFT_eSPI"]
+	path = components/TFT_eSPI
+	url = https://github.com/Bodmer/TFT_eSPI.git
+[submodule "components/golioth-firmware-sdk"]
+	path = components/golioth-firmware-sdk
+	url = https://github.com/golioth/golioth-firmware-sdk.git
