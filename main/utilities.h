@@ -5,6 +5,7 @@
 #include "Adafruit_Fingerprint.h"
 #include "TFT_eSPI.h"
 #include "SPI.h"
+#include "ArduinoJson.h"
 
 extern "C"{
   #include <string.h>

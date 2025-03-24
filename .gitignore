@@ -3,4 +3,3 @@ sdkconfig
 sdkconfig.old
 managed_components/
 main/golioth_credentials.cpp
-components/ArduinoJson

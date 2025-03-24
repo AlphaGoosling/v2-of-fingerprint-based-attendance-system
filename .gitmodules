@@ -10,3 +10,6 @@
 [submodule "components/golioth-firmware-sdk"]
 	path = components/golioth-firmware-sdk
 	url = https://github.com/golioth/golioth-firmware-sdk.git
+[submodule "components/ArduinoJson"]
+	path = components/ArduinoJson
+	url = https://github.com/bblanchon/ArduinoJson.git
