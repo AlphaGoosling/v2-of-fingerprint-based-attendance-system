@@ -16,10 +16,33 @@ Adafruit_Fingerprint finger = Adafruit_Fingerprint(&fingerprintSerial);
 
 extern "C" void app_main()
 {
-  xTaskCreate(Display_Task, "Display", 4096, NULL, 5, &DisplayTaskHandler);
   Serial.begin(115200);
   vTaskDelay(20/portTICK_PERIOD_MS);
+  fingerprintSerial.begin(115200, SERIAL_8N1, 16, 17);
+  vTaskDelay(20/portTICK_PERIOD_MS);
+  finger.begin(57600);
+  vTaskDelay(20/portTICK_PERIOD_MS);
+
+  xTaskCreate(Display_Task, "Display", 4096, NULL, 5, &DisplayTaskHandler);
   //xTaskCreate(Network_Task, "Network", 4096, NULL, 5, &NetworkTaskHandler);
+
+  while(!finger.verifyPassword()){
+    Serial.println("Did not find fingerprint sensor :(");
+    vTaskDelay(4000 / portTICK_PERIOD_MS); 
+    }
+  Serial.println("Found fingerprint sensor!");
+  Serial.println(F("Reading sensor parameters"));
+  finger.getParameters();
+  Serial.print(F("Status: 0x")); Serial.println(finger.status_reg, HEX);
+  Serial.print(F("Sys ID: 0x")); Serial.println(finger.system_id, HEX);
+  Serial.print(F("Capacity: ")); Serial.println(finger.capacity);
+  Serial.print(F("Security level: ")); Serial.println(finger.security_level);
+  Serial.print(F("Device address: ")); Serial.println(finger.device_addr, HEX);
+  Serial.print(F("Packet len: ")); Serial.println(finger.packet_len);
+  Serial.print(F("Baud rate: ")); Serial.println(finger.baud_rate);
+
+  //finger.getTemplateCount();
+
 }
 
 void Display_Task(void *arg){

@@ -9,6 +9,8 @@
     "idf.toolsPath": "/home/mn/.espressif",
     "idf.flashType": "UART",
     "files.associations": {
-        "random": "cpp"
+        "random": "cpp",
+        "cstdint": "cpp",
+        "ostream": "cpp"
     }
 }
