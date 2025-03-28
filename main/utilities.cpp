@@ -1,6 +1,8 @@
 #include "utilities.h"
 
-
+/********************************************************************************************************************************************
+                                                         WIFI FUNCTIONS               
+*********************************************************************************************************************************************/  
 #define EXAMPLE_ESP_WIFI_SSID      "redmi-black"
 #define EXAMPLE_ESP_WIFI_PASS      "77777777"
 #define EXAMPLE_ESP_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
@@ -42,7 +44,7 @@ static EventGroupHandle_t s_wifi_event_group;
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
-const char *TAG = "wifi station";
+char *TAG = "wifi station";
 
 static int s_retry_num = 0;
 
@@ -219,7 +221,6 @@ void drawMainmenu()
   }
 }
 
-// Print something in the mini typeString bar
 void typeString(const char *msg, int x, int y) {      
   tft.fillRect(x, y, (320-x),(120-y), TFT_BLACK); 
 
@@ -243,4 +244,393 @@ void typeString(const char *msg, int x, int y) {
     }
     i++;
   }
+}
+
+void typeString(const char *msg) {     
+  int x = 40; int y = 60; 
+  tft.fillRect(x, y, (320-x),(120-y), TFT_BLACK); 
+
+  uint16_t endOfString = x; //endOfString is used to keep track of the end of the string (in pixels) that we have displayed so far
+  u16_t i = 0,  j = 0; // i is used to iterate through the message string // j is used to mark the location of the last space
+  char message[2] ={' ', '\0'}; //created just to convert each char in msg to char * for tft.drawString method 
+
+  while (msg[i] != '\0' ){
+    if (msg[i] == ' '){
+      j = i;
+    }
+    message[0] = msg[i];
+    endOfString += tft.drawString(message, endOfString, y);
+    printf("%c \n", msg[i]);
+    if (endOfString > 320){   //if the string goes beyond the edge of the screen
+      tft.fillRect(j, y, (320-j),(120-y), TFT_BLACK);
+      i = j; 
+      y += 30;
+      endOfString = x;
+      //continue;
+    }
+    i++;
+  }
+}
+
+void typeString(int id, int x, int y) {     
+  const char *msg = (const char *)id;
+  tft.fillRect(x, y, (320-x),(120-y), TFT_BLACK); 
+
+  uint16_t endOfString = x; //endOfString is used to keep track of the end of the string (in pixels) that we have displayed so far
+  u16_t i = 0,  j = 0; // i is used to iterate through the message string // j is used to mark the location of the last space
+  char message[2] ={' ', '\0'}; //created just to convert each char in msg to char * for tft.drawString method 
+
+  while (msg[i] != '\0' ){
+    if (msg[i] == ' '){
+      j = i;
+    }
+    message[0] = msg[i];
+    endOfString += tft.drawString(message, endOfString, y);
+    printf("%c \n", msg[i]);
+    if (endOfString > 320){   //if the string goes beyond the edge of the screen
+      tft.fillRect(j, y, (320-j),(120-y), TFT_BLACK);
+      i = j; 
+      y += 30;
+      endOfString = x;
+      //continue;
+    }
+    i++;
+  }
+}
+
+/********************************************************************************************************************************************
+                                                      FINGERPRINT SCANNER FUNCTIONS               
+*********************************************************************************************************************************************/  
+extern Adafruit_Fingerprint finger;
+extern HardwareSerial fingerprintSerial;
+
+uint8_t getFingerprintEnroll(int id) {
+  
+  int p = -1;
+  typeString("Waiting for valid finger to enroll as #"); typeString(id, 0, 80);
+  while (p != FINGERPRINT_OK) {
+    p = finger.getImage();
+    vTaskDelay(100/ portTICK_PERIOD_MS);
+    switch (p) {
+    case FINGERPRINT_OK:
+      typeString("Image taken");
+      break;
+    case FINGERPRINT_NOFINGER:
+      typeString(".");
+      break;
+    case FINGERPRINT_PACKETRECIEVEERR:
+      typeString("Communication error");
+      break;
+    case FINGERPRINT_IMAGEFAIL:
+      typeString("Imaging error");
+      break;
+    default:
+      typeString("Unknown error");
+      break;
+    }
+  }
+
+  // OK success!
+
+  p = finger.image2Tz(1);
+  switch (p) {
+    case FINGERPRINT_OK:
+      typeString("Image converted");
+      break;
+    case FINGERPRINT_IMAGEMESS:
+      typeString("Image too messy");
+      return p;
+    case FINGERPRINT_PACKETRECIEVEERR:
+      typeString("Communication error");
+      return p;
+    case FINGERPRINT_FEATUREFAIL:
+      typeString("Could not find fingerprint features");
+      return p;
+    case FINGERPRINT_INVALIDIMAGE:
+      typeString("Could not find fingerprint features");
+      return p;
+    default:
+      typeString("Unknown error");
+      return p;
+  }
+
+  typeString("Remove finger");
+  vTaskDelay(200 / portTICK_PERIOD_MS);
+  p = 0;
+  while (p != FINGERPRINT_NOFINGER) {
+    p = finger.getImage();
+    vTaskDelay(100/ portTICK_PERIOD_MS);
+  }
+  typeString("ID "); typeString(id, 0, 80);
+  p = -1;
+  typeString("Place same finger again");
+  while (p != FINGERPRINT_OK) {
+    p = finger.getImage();
+    vTaskDelay(100/ portTICK_PERIOD_MS);
+    switch (p) {
+    case FINGERPRINT_OK:
+      typeString("Image taken");
+      break;
+    case FINGERPRINT_NOFINGER:
+      typeString(".");
+      break;
+    case FINGERPRINT_PACKETRECIEVEERR:
+      typeString("Communication error");
+      break;
+    case FINGERPRINT_IMAGEFAIL:
+      typeString("Imaging error");
+      break;
+    default:
+      typeString("Unknown error");
+      break;
+    }
+  }
+
+  // OK success!
+
+  p = finger.image2Tz(2);
+  switch (p) {
+    case FINGERPRINT_OK:
+      typeString("Image converted");
+      break;
+    case FINGERPRINT_IMAGEMESS:
+      typeString("Image too messy");
+      return p;
+    case FINGERPRINT_PACKETRECIEVEERR:
+      typeString("Communication error");
+      return p;
+    case FINGERPRINT_FEATUREFAIL:
+      typeString("Could not find fingerprint features");
+      return p;
+    case FINGERPRINT_INVALIDIMAGE:
+      typeString("Could not find fingerprint features");
+      return p;
+    default:
+      typeString("Unknown error");
+      return p;
+  }
+
+  // OK converted!
+  typeString("Creating model for #");  typeString(id, 0, 80);
+
+  p = finger.createModel();
+  if (p == FINGERPRINT_OK) {
+    typeString("Prints matched!");
+  } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
+    typeString("Communication error");
+    return p;
+  } else if (p == FINGERPRINT_ENROLLMISMATCH) {
+    typeString("Fingerprints did not match");
+    return p;
+  } else {
+    typeString("Unknown error");
+    return p;
+  }
+
+  typeString("ID "); typeString(id, 0, 80);
+  p = finger.storeModel(id);
+  if (p == FINGERPRINT_OK) {
+    typeString("Stored!");
+  } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
+    typeString("Communication error");
+    return p;
+  } else if (p == FINGERPRINT_BADLOCATION) {
+    typeString("Could not store in that location");
+    return p;
+  } else if (p == FINGERPRINT_FLASHERR) {
+    typeString("Error writing to flash");
+    return p;
+  } else {
+    typeString("Unknown error");
+    return p;
+  }
+
+  return true;
+}
+
+uint8_t getFingerprintID() {
+  uint8_t p = finger.getImage();
+  switch (p) {
+    case FINGERPRINT_OK:
+      typeString("Image taken");
+      break;
+    case FINGERPRINT_NOFINGER:
+      typeString("No finger detected");
+      return p;
+    case FINGERPRINT_PACKETRECIEVEERR:
+      typeString("Communication error");
+      return p;
+    case FINGERPRINT_IMAGEFAIL:
+      typeString("Imaging error");
+      return p;
+    default:
+      typeString("Unknown error");
+      return p;
+  }
+
+  // OK success!
+
+  p = finger.image2Tz();
+  switch (p) {
+    case FINGERPRINT_OK:
+      typeString("Image converted");
+      break;
+    case FINGERPRINT_IMAGEMESS:
+      typeString("Image too messy");
+      return p;
+    case FINGERPRINT_PACKETRECIEVEERR:
+      typeString("Communication error");
+      return p;
+    case FINGERPRINT_FEATUREFAIL:
+      typeString("Could not find fingerprint features");
+      return p;
+    case FINGERPRINT_INVALIDIMAGE:
+      typeString("Could not find fingerprint features");
+      return p;
+    default:
+      typeString("Unknown error");
+      return p;
+  }
+
+  // OK converted!
+  p = finger.fingerSearch();
+  if (p == FINGERPRINT_OK) {
+    typeString("Found a print match!");
+  } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
+    typeString("Communication error");
+    return p;
+  } else if (p == FINGERPRINT_NOTFOUND) {
+    typeString("Did not find a match");
+    return p;
+  } else {
+    typeString("Unknown error");
+    return p;
+  }
+
+  // found a match!
+  typeString("Found ID #"); typeString(finger.fingerID, 0, 80);
+  typeString(" with confidence of "); typeString(finger.confidence, 0, 80);
+
+  return finger.fingerID;
+}
+
+// returns -1 if failed, otherwise returns ID #
+int getFingerprintIDez() {
+  uint8_t p = finger.getImage();
+  if (p != FINGERPRINT_OK)  return -1;
+
+  p = finger.image2Tz();
+  if (p != FINGERPRINT_OK)  return -1;
+
+  p = finger.fingerFastSearch();
+  if (p != FINGERPRINT_OK)  return -1;
+
+  // found a match!
+  typeString("Found ID #"); typeString(finger.fingerID, 0, 80);
+  typeString(" with confidence of "); typeString(finger.confidence, 0, 80);
+  return finger.fingerID;
+}
+
+void printHex(int num, int precision) {
+  char tmp[16];
+  char format[128];
+
+  sprintf(format, "%%.%dX", precision);
+
+  sprintf(tmp, format, num);
+  typeString(tmp);
+}
+
+uint8_t downloadFingerprintTemplate(uint16_t id)
+{
+  typeString("------------------------------------");
+  typeString("Attempting to load #"); typeString(id, 0, 80);
+  uint8_t p = finger.loadModel(id);
+  switch (p) {
+    case FINGERPRINT_OK:
+      typeString("Template "); typeString(id, 0, 80); typeString(" loaded");
+      break;
+    case FINGERPRINT_PACKETRECIEVEERR:
+      typeString("Communication error");
+      return p;
+    default:
+      typeString("Unknown error "); typeString(p, 0, 80);
+      return p;
+  }
+
+  // OK success!
+
+  typeString("Attempting to get #"); typeString(id, 0, 80);
+  p = finger.getModel();
+  switch (p) {
+    case FINGERPRINT_OK:
+      typeString("Template "); typeString(id, 0, 80); typeString(" transferring:");
+      break;
+    default:
+      typeString("Unknown error "); typeString(p, 0, 80);
+      return p;
+  }
+
+  // one data packet is 267 bytes. in one data packet, 11 bytes are 'usesless' :D
+  uint8_t bytesReceived[534]; // 2 data packets
+  memset(bytesReceived, 0xff, 534);
+
+  uint32_t starttime = millis();
+  int i = 0;
+  while (i < 534 && (millis() - starttime) < 20000) {
+    if (fingerprintSerial.available()) {
+      bytesReceived[i++] = fingerprintSerial.read();
+    }
+  }
+  typeString(i, 0, 80); typeString(" bytes read.");
+  typeString("Decoding packet...");
+
+  uint8_t fingerTemplate[512]; // the real template
+  memset(fingerTemplate, 0xff, 512);
+
+  // filtering only the data packets
+  int uindx = 9, index = 0;
+  memcpy(fingerTemplate + index, bytesReceived + uindx, 256);   // first 256 bytes
+  uindx += 256;       // skip data
+  uindx += 2;         // skip checksum
+  uindx += 9;         // skip next header
+  index += 256;       // advance pointer
+  memcpy(fingerTemplate + index, bytesReceived + uindx, 256);   // second 256 bytes
+
+  for (int i = 0; i < 512; ++i) {
+    //typeString("0x");
+    printHex(fingerTemplate[i], 2);
+    //typeString(", ");
+  }
+  typeString("\ndone.");
+
+  return p;
+
+  /*
+  uint8_t templateBuffer[256];
+  memset(templateBuffer, 0xff, 256);  //zero out template buffer
+  int index=0;
+  uint32_t starttime = millis();
+  while ((index < 256) && ((millis() - starttime) < 1000))
+  {
+  if (mySerial.available())
+  {
+    templateBuffer[index] = mySerial.read();
+    index++;
+  }
+  }
+
+  typeString(index); typeString(" bytes read");
+
+  //dump entire templateBuffer.  This prints out 16 lines of 16 bytes
+  for (int count= 0; count < 16; count++)
+  {
+  for (int i = 0; i < 16; i++)
+  {
+    typeString("0x");
+    typeString(templateBuffer[count*16+i], HEX);
+    typeString(", ");
+  }
+  typeString();
+  }*/
 }
