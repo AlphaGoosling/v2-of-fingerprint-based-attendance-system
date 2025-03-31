@@ -152,14 +152,11 @@ TFT_eSPI_Button keyboardKeys[40];    //keyboard buttons
 TFT_eSPI_Button mainMenuKeys[5]; //main menu buttons
 
 const char keyboardKeyLabels[40] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 
-                                    'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', '>', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '_', '_', '<' };
+                                    'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', '>', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', ' ', ' ', '<' };
 
 char *mainMenuKeyLabels[5] = {"WiFi", "Register Attendance", "Add new Student", "Delete entry", "Connect to Server"};
 
-void drawKeyboard()
-{
-  tft.fillScreen((TFT_BLACK));
-
+void drawKeyboard(){
    // Draw keyboard background
   tft.fillRect(0, 300, 320, 180, TFT_DARKGREY);
 
@@ -206,8 +203,7 @@ void drawKeyboard()
 }
 
 
-void drawMainmenu()
-{
+void drawMainmenu(){
   onScreen = MAINMENU;
   tft.fillScreen((TFT_BLACK));
   tft.setFreeFont(MAINMENU_FONT);
@@ -219,6 +215,33 @@ void drawMainmenu()
                             mainMenuKeyLabels[i], KEY_TEXTSIZE);
     mainMenuKeys[i].drawButton();
   }
+}
+
+void drawWifiMenu(){
+  onScreen = WIFI_MENU;
+  tft.fillScreen((TFT_BLACK));
+  tft.setFreeFont(MAINMENU_FONT);
+  
+  typeString("WIFI", 120 , 25);
+
+  tft.fillRoundRect(40, 70, 240, 225, 10, 0x3186);
+  tft.setFreeFont(&FreeSans9pt7b);
+  tft.textbgcolor = 0x3186;
+  String WifiOptions[] = {"Wi-Fi", "Status", "ssid", "password"};
+  for (u8_t i = 0; i < 4; i++){
+    tft.drawString(WifiOptions[i], 60, 90 + 40*i);
+  }
+  tft.textcolor = TFT_GREEN;
+  tft.setFreeFont(&FreeSerifItalic9pt7b);
+  tft.drawString("#password must be between 8", 50, 250);
+  tft.drawString("and 12 characters long", 55, 270);
+
+  tft.fillRoundRect(150, 160, 120, 35, 5, 0x3186);
+  tft.drawRoundRect(150, 160, 120, 35, 5, TFT_DARKGREY);
+  tft.fillRoundRect(150, 200, 120, 35, 5, 0x3186);
+  tft.drawRoundRect(150, 200, 120, 35, 5, TFT_DARKGREY);
+
+  drawKeyboard();
 }
 
 void typeString(const char *msg, int x, int y) {      

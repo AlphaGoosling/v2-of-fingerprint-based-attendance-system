@@ -31,7 +31,7 @@ extern "C"{
 #define SCREEN_H 480
 
 #define MAINMENU              0
-#define WIFI                  1
+#define WIFI_MENU             1
 #define REGISTER_ATTENDANCE   2
 #define ADD_NEW_STUDENT       3
 #define DELETE_ENTRY          4
@@ -70,6 +70,7 @@ extern "C" void wifi_init_sta(void);
 
 void drawKeyboard();
 void drawMainmenu();
+void drawWifiMenu();
 void typeString(const char *msg, int x, int y);
 
 #endif // UTILITIES_H_
