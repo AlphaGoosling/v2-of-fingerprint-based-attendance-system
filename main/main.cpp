@@ -4,6 +4,11 @@ extern char *TAG;
 
 TFT_eSPI tft = TFT_eSPI();
 
+extern char numberBuffer[NUM_LEN + 1];
+extern uint8_t numberIndex;
+extern const char keyboardKeyLabels[40];
+extern TFT_eSPI_Button keyboardKeys[40];
+
 TaskHandle_t DisplayTaskHandler = NULL;
 TaskHandle_t NetworkTaskHandler = NULL;
 
@@ -77,44 +82,18 @@ extern "C" void app_main()
   } else {
       ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
   }
+  
+  //File io starts here
 
-  // Use POSIX and C standard library functions to work with files.
-  // First create a file.
-  ESP_LOGI(TAG, "Opening file");
-  FILE *f = fopen("/littlefs/hello.txt", "w");
-  if (f == NULL) {
-      ESP_LOGE(TAG, "Failed to open file for writing");
-      return;
-  }
-  fprintf(f, "Hello World!\n");
-  fclose(f);
-  ESP_LOGI(TAG, "File written");
-
-  // Check if destination file exists before renaming
-  struct stat st;
-  if (stat("/littlefs/foo.txt", &st) == 0) {
-      // Delete it if it exists
-      unlink("/littlefs/foo.txt");
-  }
-
-  // Rename original file
-  ESP_LOGI(TAG, "Renaming file");
-  if (rename("/littlefs/hello.txt", "/littlefs/foo.txt") != 0) {
-      ESP_LOGE(TAG, "Rename failed");
-      return;
-  }
-
-  // Open renamed file for reading
-  ESP_LOGI(TAG, "Reading file");
-  f = fopen("/littlefs/foo.txt", "r");
-  if (f == NULL) {
+  FILE *file = fopen("/littlefs/Mec3-LH.txt", "r");
+  if (file == NULL) {
       ESP_LOGE(TAG, "Failed to open file for reading");
       return;
   }
 
   char line[128] = {0};
-  fgets(line, sizeof(line), f);
-  fclose(f);
+  fgets(line, sizeof(line), file);
+  fclose(file);
   // strip newline
   char* pos = strpbrk(line, "\r\n");
   if (pos) {
@@ -122,20 +101,6 @@ extern "C" void app_main()
   }
   ESP_LOGI(TAG, "Read from file: '%s'", line);
 
-  ESP_LOGI(TAG, "Reading from flashed filesystem example.txt");
-  f = fopen("/littlefs/example.txt", "r");
-  if (f == NULL) {
-      ESP_LOGE(TAG, "Failed to open file for reading");
-      return;
-  }
-  fgets(line, sizeof(line), f);
-  fclose(f);
-  // strip newline
-  pos = strpbrk(line, "\r\n");
-  if (pos) {
-      *pos = '\0';
-  }
-  ESP_LOGI(TAG, "Read from file: '%s'", line);
 
   // All done, unmount partition and disable LittleFS
   //esp_vfs_littlefs_unregister(conf.partition_label);
@@ -150,12 +115,14 @@ void Display_Task(void *arg){
   uint16_t calData[5] = { 225, 3565, 221, 3705, 7 };
   tft.setTouch(calData);
 
-  //drawMainmenu();
-  drawKeyboard();
+  drawMainmenu();
+  //drawKeyboard();
+  //drawWifiMenu();
   
   while(1){
-    vTaskDelay(200/portTICK_PERIOD_MS);
+    vTaskDelay(2000/portTICK_PERIOD_MS);
     printf("Aint much, but honest work");
+    
   }
 }
 
