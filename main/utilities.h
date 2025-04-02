@@ -6,6 +6,7 @@
 #include "TFT_eSPI.h"
 #include "SPI.h"
 #include "ArduinoJson.h"
+#include "LittleFS.h"
 
 extern "C"{
   #include "stdio.h"
@@ -17,7 +18,6 @@ extern "C"{
   #include "freertos/event_groups.h"
   #include "esp_log.h"
   #include "esp_err.h"
-  #include "esp_littlefs.h"
   #include "esp_system.h"
   #include "esp_wifi.h"
   #include "esp_event.h"
