@@ -53,16 +53,19 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+    } 
+    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
             esp_wifi_connect();
             s_retry_num++;
             ESP_LOGI(TAG, "retry to connect to the AP");
-        } else {
+        } 
+        else {
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
         }
         ESP_LOGI(TAG,"connect to the AP fail");
-    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+    } 
+    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
@@ -156,6 +159,7 @@ const char keyboardKeyLabels[40] = {'1', '2', '3', '4', '5', '6', '7', '8', '9',
 
 char *mainMenuKeyLabels[5] = {"WiFi", "Register Attendance", "Add new Student", "Delete entry", "Connect to Server"};
 
+
 void drawKeyboard(){
    // Draw keyboard background
   tft.fillRect(0, 300, 320, 180, TFT_DARKGREY);
@@ -200,6 +204,11 @@ void drawKeyboard(){
       keyboardKeys[b].drawButton();
     }
   }
+  tft.setFreeFont(&FreeSans9pt7b);
+  tft.setTextDatum(CC_DATUM);
+  TFT_eSPI_Button KeyboardBackButton;
+  KeyboardBackButton.initButton(&tft, 32, 16, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
+  KeyboardBackButton.drawButton();
 }
 
 
@@ -236,10 +245,24 @@ void drawWifiMenu(){
   tft.drawString("#password must be between 8", 50, 250);
   tft.drawString("and 12 characters long", 55, 270);
 
-  tft.fillRoundRect(150, 160, 120, 35, 5, 0x3186);
-  tft.drawRoundRect(150, 160, 120, 35, 5, TFT_DARKGREY);
-  tft.fillRoundRect(150, 200, 120, 35, 5, 0x3186);
-  tft.drawRoundRect(150, 200, 120, 35, 5, TFT_DARKGREY);
+  TFT_eSPI_Button WifiOnOffButton;
+  WifiOnOffButton.initButton(&tft, 145, 100, 60, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
+  WifiOnOffButton.drawButton();
+
+  TFT_eSPI_Button WifiSsidField;
+  WifiSsidField.initButton(&tft, 205, 180, 125, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
+  WifiSsidField.drawButton();
+
+  TFT_eSPI_Button PasswordField;
+  PasswordField.initButton(&tft, 205, 220, 125, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
+  PasswordField.drawButton();
+
+  tft.setFreeFont(&FreeSans9pt7b);
+  tft.setTextDatum(CC_DATUM);
+  TFT_eSPI_Button BackButton;
+  BackButton.initButton(&tft, 285, 465, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
+  BackButton.drawButton();
+
 
   drawKeyboard();
 }
