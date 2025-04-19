@@ -11,21 +11,6 @@ long timezone = 1;
 byte daysavetime = 1;
 
 TFT_eSPI tft = TFT_eSPI();
-struct golioth_client *client;
-extern char* psk_id;
-extern char* psk;
-
-const struct golioth_client_config config = {
-  .credentials = {
-    .auth_type = GOLIOTH_TLS_AUTH_TYPE_PSK,
-    .psk = {
-      .psk_id = psk_id,
-      .psk_id_len = strlen(psk_id),
-      .psk = psk,
-      .psk_len = strlen(psk),
-    }
-  }
-};
 
 char charBuffer[CHAR_LEN + 1] = "";
 uint8_t charIndex = 0;
@@ -51,6 +36,10 @@ HardwareSerial fingerprintSerial(2);
 
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&fingerprintSerial);
 
+
+/********************************************************************************************************************************************
+                                                      Main Function              
+*********************************************************************************************************************************************/  
 extern "C" void app_main()
 {
   Serial.begin(115200);
@@ -87,6 +76,9 @@ extern "C" void app_main()
   xTaskCreate(Display_Task, "Display", 4096, NULL, 3, &DisplayTaskHandler);
 }
 
+/********************************************************************************************************************************************
+                                                      Display Task             
+*********************************************************************************************************************************************/  
 void Display_Task(void *arg){
   Serial.println("starting display");
   tft.init();
@@ -97,12 +89,6 @@ void Display_Task(void *arg){
   tft.setTouch(calData);
 
   drawMainmenu();
-  //drawKeyboard();
-  //drawWifiMenu();
-  //drawRegisterAttendanceMenu();
-  //drawAddNewStudentMenu();
-  //drawDeleteStudentEntry();
-  //drawSyncWithServer();
 
   static int xwidth = 0;
   while(1){
@@ -113,8 +99,11 @@ void Display_Task(void *arg){
 
     // Pressed will be set true is there is a valid touch on the screen
     bool pressed = tft.getTouch(&t_x, &t_y);
-    
+
+
+
     switch (onScreen){
+/**************************************************************************************/
       case MAINMENU:
         //Checking if any key coordinate boxes contain the touch coordinates
         for (uint8_t i = 0; i < 5; i++) {
@@ -154,6 +143,8 @@ void Display_Task(void *arg){
           }
         }
         break;
+
+/**************************************************************************************/
       case WIFI_MENU:
         if (pressed && WifiOnOffButton.contains(t_x, t_y)) {WifiOnOffButton.press(true);} 
         else {WifiOnOffButton.press(false);}
@@ -205,8 +196,7 @@ void Display_Task(void *arg){
               esp_wifi_start();
               //client = golioth_client_create(&config);
               xTaskAbortDelay(DisplayTaskHandler);
-            }
-            
+            } 
           }
         }
 
@@ -231,25 +221,50 @@ void Display_Task(void *arg){
           printf("%i, %i\n", box_x, box_y);
           if(!keyboardOnScreen)drawKeyboard();
         }
+        break;
 
-        break;
+/**************************************************************************************/
       case REGISTER_ATTENDANCE:
-      
+        for (uint8_t i = 0; i < attendanceFileNum; i++) {
+          if (pressed && studentClasses[i].contains(t_x, t_y)) {
+            studentClasses[i].press(true);
+          } else {
+            studentClasses[i].press(false);
+          }
+        }
+        // Checking if any key has changed state
+        for (uint8_t i = 0; i < attendanceFileNum; i++) {
+          if (studentClasses[i].justReleased()) studentClasses[i].drawButton();     // draw normal
+
+          if (studentClasses[i].justPressed()) {
+            studentClasses[i].drawButton(true);  // draw invert
+
+            //Load student data from file clicked into json object and then into fingerprint sensor
+            //display info on screen that taking attendance is in progress add exit button
+            //prompt the user to touch the fingerprint sensor 
+            //when they do display their name and student number with the words attendance confirmed
+            //do again until 
+          }
+        }
         break;
+/**************************************************************************************/
       case ADD_NEW_STUDENT:
       
         break;
+/**************************************************************************************/
       case DELETE_STUDENT_ENTRY:
       
         break;
+/**************************************************************************************/
       case SYNC_WITH_SERVER:
       
         break;
       default:
-      
+        printf("Error! Unrecorgnised Main Menu key");
         break;
     }
-    ///*
+
+/**************************************************************************************/
     if (keyboardOnScreen == true){
       for (uint8_t i = 0; i < 40; i++) {
         if (pressed && keyboardKeys[i].contains(t_x, t_y)) {
@@ -305,7 +320,8 @@ void Display_Task(void *arg){
         }
       }
     }
-    //*/
+
+/**************************************************************************************/
     if (onScreen != MAINMENU){
       if (pressed && BackButton.contains(t_x, t_y)) {
         BackButton.press(true);  // tell the button it is pressed
@@ -322,10 +338,13 @@ void Display_Task(void *arg){
         drawMainmenu();
       }
     }
-    vTaskDelay(100); // UI debouncing
+    vTaskDelay(20 / portTICK_PERIOD_MS); // UI debouncing
   }
 }
 
+/********************************************************************************************************************************************
+                                                      Network Task             
+*********************************************************************************************************************************************/  
 void Network_Task(void *arg){
   char *TAG = "wifi station";
   //Initialize NVS
@@ -339,8 +358,22 @@ void Network_Task(void *arg){
   vTaskDelay(1000 / portTICK_PERIOD_MS);
   wifi_init_sta();
 
+  extern char* psk_id;
+  extern char* psk;
 
-  client = golioth_client_create(&config);
+  const struct golioth_client_config config = {
+    .credentials = {
+      .auth_type = GOLIOTH_TLS_AUTH_TYPE_PSK,
+      .psk = {
+        .psk_id = psk_id,
+        .psk_id_len = strlen(psk_id),
+        .psk = psk,
+        .psk_len = strlen(psk),
+      }
+    }
+  };
+
+  struct golioth_client *client = golioth_client_create(&config);
   assert(client);
   /*
   configTime(3600 * timezone, daysavetime * 3600, "time.nist.gov", "0.pool.ntp.org", "1.pool.ntp.org");
