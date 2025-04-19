@@ -1,9 +1,6 @@
 [submodule "components/arduino"]
 	path = components/arduino
 	url = https://github.com/espressif/arduino-esp32.git
-[submodule "components/Adafruit-Fingerprint-Sensor-Library"]
-	path = components/Adafruit-Fingerprint-Sensor-Library
-	url = https://github.com/adafruit/Adafruit-Fingerprint-Sensor-Library.git
 [submodule "components/TFT_eSPI"]
 	path = components/TFT_eSPI
 	url = https://github.com/Bodmer/TFT_eSPI.git
@@ -13,3 +10,7 @@
 [submodule "components/ArduinoJson"]
 	path = components/ArduinoJson
 	url = https://github.com/bblanchon/ArduinoJson.git
+[submodule "components/Adafruit-Fingerprint-Sensor-Library"]
+	path = components/Adafruit-Fingerprint-Sensor-Library
+	url = https://github.com/AsifKhan991/Adafruit-Fingerprint-Sensor-Library.git
+	branch = template_transfer_feature
