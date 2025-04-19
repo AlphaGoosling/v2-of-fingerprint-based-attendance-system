@@ -6,6 +6,9 @@
 #include "TFT_eSPI.h"
 #include "SPI.h"
 #include "ArduinoJson.h"
+#include <time.h>
+#include "FS.h"
+#include "LittleFS.h"
 
 extern "C"{
   #include "stdio.h"
@@ -17,7 +20,6 @@ extern "C"{
   #include "freertos/event_groups.h"
   #include "esp_log.h"
   #include "esp_err.h"
-  #include "esp_littlefs.h"
   #include "esp_system.h"
   #include "esp_wifi.h"
   #include "esp_event.h"
@@ -34,8 +36,8 @@ extern "C"{
 #define WIFI_MENU             1
 #define REGISTER_ATTENDANCE   2
 #define ADD_NEW_STUDENT       3
-#define DELETE_ENTRY          4
-#define CONNECT_TO_SERVER     5
+#define DELETE_STUDENT_ENTRY  4
+#define SYNC_WITH_SERVER      5
 
 //Main menu key sizes
 #define MAINKEY_H 40
@@ -62,17 +64,66 @@ extern "C"{
 #define DISP_TSIZE 3
 #define DISP_TCOLOR TFT_CYAN
 
-// Number length, buffer for storing it and character index
-#define NUM_LEN 12
+// Word length, buffer for storing int and character index
+#define CHAR_LEN 15
 
+/* The event group allows multiple bits for each event, but we only care about two events:
+ * - we are connected to the AP with an IP
+ * - we failed to connect after the maximum amount of retries */
+#define WIFI_CONNECTED_BIT BIT0
+#define WIFI_FAIL_BIT      BIT1
 
 extern "C" void wifi_init_sta(void);
 
 void drawKeyboard();
 void drawMainmenu();
 void drawWifiMenu();
-void typeString(const char *msg, int x, int y);
+void drawRegisterAttendanceMenu();
+void drawAddNewStudentMenu();
+void drawDeleteStudentEntry();
+void drawSyncWithServer();
+
+
+void printHex(int num, int precision);
+
+u8_t listDir(fs::FS &fs, const char *dirname, uint8_t levels);
+void createDir(fs::FS &fs, const char *path);
+void removeDir(fs::FS &fs, const char *path);
+void readFile(fs::FS &fs, const char *path);
+void writeFile(fs::FS &fs, const char *path, const char *message);
+void appendFile(fs::FS &fs, const char *path, const char *message);
+void renameFile(fs::FS &fs, const char *path1, const char *path2);
+void deleteFile(fs::FS &fs, const char *path);
 
 #endif // UTILITIES_H_
+
+
+#if CONFIG_ESP_WPA3_SAE_PWE_HUNT_AND_PECK
+#define ESP_WIFI_SAE_MODE WPA3_SAE_PWE_HUNT_AND_PECK
+#define EXAMPLE_H2E_IDENTIFIER ""
+#elif CONFIG_ESP_WPA3_SAE_PWE_HASH_TO_ELEMENT
+#define ESP_WIFI_SAE_MODE WPA3_SAE_PWE_HASH_TO_ELEMENT
+#define EXAMPLE_H2E_IDENTIFIER CONFIG_ESP_WIFI_PW_ID
+#elif CONFIG_ESP_WPA3_SAE_PWE_BOTH
+#define ESP_WIFI_SAE_MODE WPA3_SAE_PWE_BOTH
+#define EXAMPLE_H2E_IDENTIFIER CONFIG_ESP_WIFI_PW_ID
+#endif
+#if CONFIG_ESP_WIFI_AUTH_OPEN
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_OPEN
+#elif CONFIG_ESP_WIFI_AUTH_WEP
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WEP
+#elif CONFIG_ESP_WIFI_AUTH_WPA_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_PSK
+#elif CONFIG_ESP_WIFI_AUTH_WPA2_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
+#elif CONFIG_ESP_WIFI_AUTH_WPA_WPA2_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_WPA2_PSK
+#elif CONFIG_ESP_WIFI_AUTH_WPA3_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA3_PSK
+#elif CONFIG_ESP_WIFI_AUTH_WPA2_WPA3_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_WPA3_PSK
+#elif CONFIG_ESP_WIFI_AUTH_WAPI_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WAPI_PSK
+#endif
 
 

@@ -1,166 +1,35 @@
 #include "utilities.h"
 
 /********************************************************************************************************************************************
-                                                         WIFI FUNCTIONS               
-*********************************************************************************************************************************************/  
-#define EXAMPLE_ESP_WIFI_SSID      "redmi-black"
-#define EXAMPLE_ESP_WIFI_PASS      "77777777"
-#define EXAMPLE_ESP_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
-
-#if CONFIG_ESP_WPA3_SAE_PWE_HUNT_AND_PECK
-#define ESP_WIFI_SAE_MODE WPA3_SAE_PWE_HUNT_AND_PECK
-#define EXAMPLE_H2E_IDENTIFIER ""
-#elif CONFIG_ESP_WPA3_SAE_PWE_HASH_TO_ELEMENT
-#define ESP_WIFI_SAE_MODE WPA3_SAE_PWE_HASH_TO_ELEMENT
-#define EXAMPLE_H2E_IDENTIFIER CONFIG_ESP_WIFI_PW_ID
-#elif CONFIG_ESP_WPA3_SAE_PWE_BOTH
-#define ESP_WIFI_SAE_MODE WPA3_SAE_PWE_BOTH
-#define EXAMPLE_H2E_IDENTIFIER CONFIG_ESP_WIFI_PW_ID
-#endif
-#if CONFIG_ESP_WIFI_AUTH_OPEN
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_OPEN
-#elif CONFIG_ESP_WIFI_AUTH_WEP
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WEP
-#elif CONFIG_ESP_WIFI_AUTH_WPA_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_PSK
-#elif CONFIG_ESP_WIFI_AUTH_WPA2_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
-#elif CONFIG_ESP_WIFI_AUTH_WPA_WPA2_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_WPA2_PSK
-#elif CONFIG_ESP_WIFI_AUTH_WPA3_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA3_PSK
-#elif CONFIG_ESP_WIFI_AUTH_WPA2_WPA3_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_WPA3_PSK
-#elif CONFIG_ESP_WIFI_AUTH_WAPI_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WAPI_PSK
-#endif
-
-/* FreeRTOS event group to signal when we are connected*/
-static EventGroupHandle_t s_wifi_event_group;
-
-/* The event group allows multiple bits for each event, but we only care about two events:
- * - we are connected to the AP with an IP
- * - we failed to connect after the maximum amount of retries */
-#define WIFI_CONNECTED_BIT BIT0
-#define WIFI_FAIL_BIT      BIT1
-
-char *TAG = "wifi station";
-
-static int s_retry_num = 0;
-
-static void event_handler(void* arg, esp_event_base_t event_base,
-                                int32_t event_id, void* event_data)
-{
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        esp_wifi_connect();
-    } 
-    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
-            esp_wifi_connect();
-            s_retry_num++;
-            ESP_LOGI(TAG, "retry to connect to the AP");
-        } 
-        else {
-            xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
-        }
-        ESP_LOGI(TAG,"connect to the AP fail");
-    } 
-    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-        ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-        s_retry_num = 0;
-        xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
-    }
-}
-
-extern "C" void wifi_init_sta(void)
-{
-  s_wifi_event_group = xEventGroupCreate();
-
-  ESP_ERROR_CHECK(esp_netif_init());
-
-  ESP_ERROR_CHECK(esp_event_loop_create_default());
-  esp_netif_create_default_wifi_sta();
-
-  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
-  esp_event_handler_instance_t instance_any_id;
-  esp_event_handler_instance_t instance_got_ip;
-  ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                                                      ESP_EVENT_ANY_ID,
-                                                      &event_handler,
-                                                      NULL,
-                                                      &instance_any_id));
-  ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-                                                      IP_EVENT_STA_GOT_IP,
-                                                      &event_handler,
-                                                      NULL,
-                                                      &instance_got_ip));
-
-  wifi_config_t wifi_config = {
-    .sta = {
-      .ssid = EXAMPLE_ESP_WIFI_SSID ,
-      .password = EXAMPLE_ESP_WIFI_PASS,
-      /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
-        * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
-        * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
-        * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
-        */
-      .threshold = {.rssi = -90, .authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD, .rssi_5g_adjustment = 20},
-      .sae_pwe_h2e = ESP_WIFI_SAE_MODE,
-      .sae_h2e_identifier = EXAMPLE_H2E_IDENTIFIER,
-    },
-  };
-  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-  ESP_ERROR_CHECK(esp_wifi_start() );
-
-  ESP_LOGI(TAG, "wifi_init_sta finished.");
-
-  /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
-    * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
-  EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-          WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-          pdFALSE,
-          pdFALSE,
-          portMAX_DELAY);
-
-  /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
-    * happened. */
-  if (bits & WIFI_CONNECTED_BIT) {
-    ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
-              EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
-  } else if (bits & WIFI_FAIL_BIT) {
-      ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
-                EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
-  } else {
-      ESP_LOGE(TAG, "UNEXPECTED EVENT");
-  }
-}
-
-
-/********************************************************************************************************************************************
                                                          DISPLAY FUNCTIONS               
 *********************************************************************************************************************************************/  
 
 extern TFT_eSPI tft;
 
-char numberBuffer[NUM_LEN + 1] = "";
-uint8_t numberIndex = 0;
+u8_t attendanceFileNum = 0;
 
 uint8_t onScreen; // keeps track of what is displayed on screen
+bool keyboardOnScreen = false;
+bool wifiOn = false;
 
 TFT_eSPI_Button keyboardKeys[40];    //keyboard buttons 
 TFT_eSPI_Button mainMenuKeys[5]; //main menu buttons
+TFT_eSPI_Button studentClasses[8];
+TFT_eSPI_Button BackButton;
+TFT_eSPI_Button PasswordField;
+TFT_eSPI_Button WifiSsidField;
+TFT_eSPI_Button WifiOnOffButton;
 
-const char keyboardKeyLabels[40] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 
+char keyboardKeyLabels[40] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 
                                     'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', '>', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', ' ', ' ', '<' };
 
-char *mainMenuKeyLabels[5] = {"WiFi", "Register Attendance", "Add new Student", "Delete entry", "Connect to Server"};
+char *mainMenuKeyLabels[5] = {"WiFi", "Register Attendance", "Add new Student", "Delete Student Entry", "Sync With Server"};
+
+char studentClassLabels[8][16];
 
 
 void drawKeyboard(){
+  keyboardOnScreen = true;
    // Draw keyboard background
   tft.fillRect(0, 300, 320, 180, TFT_DARKGREY);
 
@@ -205,18 +74,18 @@ void drawKeyboard(){
     }
   }
   tft.setFreeFont(&FreeSans9pt7b);
-  tft.setTextDatum(CC_DATUM);
-  TFT_eSPI_Button KeyboardBackButton;
-  KeyboardBackButton.initButton(&tft, 32, 16, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
-  KeyboardBackButton.drawButton();
+  BackButton.initButton(&tft, 32, 16, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
+  BackButton.drawButton();
 }
 
 
 void drawMainmenu(){
   onScreen = MAINMENU;
   tft.fillScreen((TFT_BLACK));
+  tft.textcolor = TFT_WHITE;
+  tft.textbgcolor = TFT_BLACK;
   tft.setFreeFont(MAINMENU_FONT);
-  typeString("MAIN MENU", 85 , 25);
+  tft.drawString("MAIN MENU", 85 , 25);
   
   for (uint8_t i = 0; i < 5; i++){
     mainMenuKeys[i]. initButton(&tft, SCREEN_W / 2 , (SCREEN_H * (i+1)/ 6 ) + 40,
@@ -229,120 +98,165 @@ void drawMainmenu(){
 void drawWifiMenu(){
   onScreen = WIFI_MENU;
   tft.fillScreen((TFT_BLACK));
+  tft.textcolor = TFT_WHITE;
+  tft.textbgcolor = TFT_BLACK;
   tft.setFreeFont(MAINMENU_FONT);
   
-  typeString("WIFI", 120 , 25);
+  tft.drawString("WIFI", 120 , 25);
+
+  tft.fillRoundRect(20, 70, 280, 225, 10, 0x3186);
+  tft.setFreeFont(&FreeSans9pt7b);
+  tft.textbgcolor = 0x3186;
+  String WifiOptions[] = {"Wi-Fi", "Status", "Ssid", "Password"};
+  for (u8_t i = 0; i < 4; i++){
+    tft.drawString(WifiOptions[i], 32, 90 + 40*i);
+  }
+  
+  tft.textcolor = TFT_GREEN;
+  tft.setFreeFont(&FreeSerifItalic9pt7b);
+  tft.drawString("#password must be between 8 and 15", 30, 250);
+  tft.drawString("characters long", 35, 270);
+
+  WifiOnOffButton.initButton(&tft, 126, 98, 45, 24, 0x3186, 0x3186, 0x3186, " ", KEY_TEXTSIZE);
+  WifiOnOffButton.drawButton();
+  tft.fillRoundRect(104, 86, 45, 24, 12, wifiOn? TFT_DARKGREEN : TFT_DARKGREY);
+  tft.drawRoundRect(104, 86, 45, 24, 12, TFT_BLACK);
+  tft.fillCircle(wifiOn? 136 : 115, 97, 8, TFT_WHITE);
+
+  tft.textcolor = wifiOn ? TFT_GREEN : TFT_RED;
+  tft.setFreeFont(&FreeSans9pt7b);
+  tft.drawString(wifiOn? "CONNECTED" : "DISCONNECTED", 115, 130);
+
+  WifiSsidField.initButton(&tft, 204, 176, 170, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
+  WifiSsidField.drawButton();
+
+  PasswordField.initButton(&tft, 204, 216, 170, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
+  PasswordField.drawButton();
+
+  tft.setFreeFont(&FreeSans9pt7b);
+  BackButton.initButton(&tft, 275, 455, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
+  BackButton.drawButton();
+}
+
+void drawRegisterAttendanceMenu(){
+  onScreen = REGISTER_ATTENDANCE;
+  tft.fillScreen((TFT_BLACK));
+  tft.textcolor = TFT_WHITE;
+  tft.textbgcolor = TFT_BLACK;
+  tft.setFreeFont(MAINMENU_FONT);
+  //tft.setTextDatum(TL_DATUM); 
+  tft.drawString("REGISTER ATTENDANCE", 12, 30);
+
+  tft.setFreeFont(&FreeSans9pt7b);
+  Serial.print("Number of attendance data files in littlefs storage: "); Serial.println(attendanceFileNum); Serial.println(" ");
+
+  tft.fillRoundRect(40, 70, 240, 220, 10, 0x3186);
+  for (u8_t i = 0; i < 8; i++){
+    if (i >= attendanceFileNum){
+      strncpy(studentClassLabels[i], "        \0", 10);
+    }
+    Serial.print("studentClassLabels[i]: "); Serial.println(studentClassLabels[i]);
+    studentClasses[i].initButton(&tft, 95, 90 + i * 40, 100, 30, 0x3186, 0x3186, TFT_WHITE, studentClassLabels[i], KEY_TEXTSIZE);
+    studentClasses[i].drawButton();
+  }
+
+  tft.textcolor = TFT_GREEN;
+  tft.textbgcolor = 0x3186;
+  tft.setFreeFont(&FreeSerifItalic9pt7b);
+  tft.drawString("#Select a students list to be used", 48, 245);
+  tft.drawString("to register attendance", 48, 265);
+  tft.fillRect(0, 290, 320, 150, TFT_BLACK);
+
+  for (u8_t i = 0; i < attendanceFileNum; i++){
+    tft.drawLine(45, 97 + i * 40, 147, 97 + i * 40, TFT_WHITE);
+  }
+
+  tft.setFreeFont(&FreeSans9pt7b);
+  BackButton.initButton(&tft, 275, 455, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
+  BackButton.drawButton();
+}
+
+void drawAddNewStudentMenu(){
+  onScreen = ADD_NEW_STUDENT;
+  tft.fillScreen((TFT_BLACK));
+  tft.textcolor = TFT_WHITE;
+  tft.textbgcolor = TFT_BLACK;
+  tft.setFreeFont(MAINMENU_FONT);
+  tft.drawString("ADD NEW STUDENT", 40 , 30);
 
   tft.fillRoundRect(40, 70, 240, 225, 10, 0x3186);
   tft.setFreeFont(&FreeSans9pt7b);
   tft.textbgcolor = 0x3186;
-  String WifiOptions[] = {"Wi-Fi", "Status", "ssid", "password"};
-  for (u8_t i = 0; i < 4; i++){
-    tft.drawString(WifiOptions[i], 60, 90 + 40*i);
+  String WifiOptions[] = {"First Name", "Last Name", "Std No."};
+  for (u8_t i = 0; i < 3; i++){
+    tft.drawString(WifiOptions[i], 50, 100 + 50*i);
   }
   tft.textcolor = TFT_GREEN;
   tft.setFreeFont(&FreeSerifItalic9pt7b);
   tft.drawString("#password must be between 8", 50, 250);
   tft.drawString("and 12 characters long", 55, 270);
 
-  TFT_eSPI_Button WifiOnOffButton;
-  WifiOnOffButton.initButton(&tft, 145, 100, 60, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
-  WifiOnOffButton.drawButton();
+  TFT_eSPI_Button FirstNameField;
+  FirstNameField.initButton(&tft, 205, 110, 125, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
+  FirstNameField.drawButton();
 
-  TFT_eSPI_Button WifiSsidField;
-  WifiSsidField.initButton(&tft, 205, 180, 125, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
-  WifiSsidField.drawButton();
+  TFT_eSPI_Button LastNameField;
+  LastNameField.initButton(&tft, 205, 160, 125, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
+  LastNameField.drawButton();
 
-  TFT_eSPI_Button PasswordField;
-  PasswordField.initButton(&tft, 205, 220, 125, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
-  PasswordField.drawButton();
+  TFT_eSPI_Button StdNumberField;
+  StdNumberField.initButton(&tft, 205, 210, 125, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
+  StdNumberField.drawButton();
 
   tft.setFreeFont(&FreeSans9pt7b);
-  tft.setTextDatum(CC_DATUM);
-  TFT_eSPI_Button BackButton;
-  BackButton.initButton(&tft, 285, 465, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
+  BackButton.initButton(&tft, 275, 455, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
   BackButton.drawButton();
 
 
-  drawKeyboard();
+  //drawKeyboard();
 }
 
-void typeString(const char *msg, int x, int y) {      
-  tft.fillRect(x, y, (320-x),(120-y), TFT_BLACK); 
+void drawDeleteStudentEntry(){
+  onScreen = DELETE_STUDENT_ENTRY ;
+  tft.fillScreen((TFT_BLACK));
+  tft.textcolor = TFT_WHITE;
+  tft.textbgcolor = TFT_BLACK;
+  tft.setFreeFont(MAINMENU_FONT);
+  tft.drawString("DELETE STUDENT", 55, 30);
 
-  uint16_t endOfString = x; //endOfString is used to keep track of the end of the string (in pixels) that we have displayed so far
-  u16_t i = 0,  j = 0; // i is used to iterate through the message string // j is used to mark the location of the last space
-  char message[2] ={' ', '\0'}; //created just to convert each char in msg to char * for tft.drawString method 
+  tft.fillRoundRect(40, 70, 240, 225, 10, 0x3186);
+  tft.setFreeFont(&FreeSans9pt7b);
+  tft.textbgcolor = 0x3186;
+  tft.drawString("Student number :", 50, 90);
 
-  while (msg[i] != '\0' ){
-    if (msg[i] == ' '){
-      j = i;
-    }
-    message[0] = msg[i];
-    endOfString += tft.drawString(message, endOfString, y);
-    printf("%c \n", msg[i]);
-    if (endOfString > 320){   //if the string goes beyond the edge of the screen
-      tft.fillRect(j, y, (320-j),(120-y), TFT_BLACK);
-      i = j; 
-      y += 30;
-      endOfString = x;
-      //continue;
-    }
-    i++;
-  }
+  TFT_eSPI_Button StudentNumberField;
+  tft.setTextDatum(TL_DATUM);
+  StudentNumberField.initButton(&tft, 150, 123, 200, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
+  StudentNumberField.drawButton();
+
+  tft.setFreeFont(&FreeSans9pt7b);
+  BackButton.initButton(&tft, 275, 455, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
+  BackButton.drawButton();
 }
 
-void typeString(const char *msg) {     
-  int x = 40; int y = 60; 
-  tft.fillRect(x, y, (320-x),(120-y), TFT_BLACK); 
+void drawSyncWithServer(){
+  onScreen = SYNC_WITH_SERVER;
+  tft.fillScreen((TFT_BLACK));
+  tft.textcolor = TFT_WHITE;
+  tft.textbgcolor = TFT_BLACK;
+  tft.setFreeFont(MAINMENU_FONT);
+  tft.drawString("SYNC WITH SERVER", 40, 30);
 
-  uint16_t endOfString = x; //endOfString is used to keep track of the end of the string (in pixels) that we have displayed so far
-  u16_t i = 0,  j = 0; // i is used to iterate through the message string // j is used to mark the location of the last space
-  char message[2] ={' ', '\0'}; //created just to convert each char in msg to char * for tft.drawString method 
+  tft.fillRoundRect(40, 130, 240, 100, 10, 0x3186);
+  tft.setFreeFont(&FreeSans9pt7b);
+  tft.textbgcolor = 0x3186;
+  tft.drawString("Synchronizing . . .", 50, 168);
 
-  while (msg[i] != '\0' ){
-    if (msg[i] == ' '){
-      j = i;
-    }
-    message[0] = msg[i];
-    endOfString += tft.drawString(message, endOfString, y);
-    printf("%c \n", msg[i]);
-    if (endOfString > 320){   //if the string goes beyond the edge of the screen
-      tft.fillRect(j, y, (320-j),(120-y), TFT_BLACK);
-      i = j; 
-      y += 30;
-      endOfString = x;
-      //continue;
-    }
-    i++;
-  }
+  tft.setFreeFont(&FreeSans9pt7b);
+  BackButton.initButton(&tft, 275, 455, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
+  BackButton.drawButton();
 }
 
-void typeString(int id, int x, int y) {     
-  const char *msg = (const char *)id;
-  tft.fillRect(x, y, (320-x),(120-y), TFT_BLACK); 
-
-  uint16_t endOfString = x; //endOfString is used to keep track of the end of the string (in pixels) that we have displayed so far
-  u16_t i = 0,  j = 0; // i is used to iterate through the message string // j is used to mark the location of the last space
-  char message[2] ={' ', '\0'}; //created just to convert each char in msg to char * for tft.drawString method 
-
-  while (msg[i] != '\0' ){
-    if (msg[i] == ' '){
-      j = i;
-    }
-    message[0] = msg[i];
-    endOfString += tft.drawString(message, endOfString, y);
-    printf("%c \n", msg[i]);
-    if (endOfString > 320){   //if the string goes beyond the edge of the screen
-      tft.fillRect(j, y, (320-j),(120-y), TFT_BLACK);
-      i = j; 
-      y += 30;
-      endOfString = x;
-      //continue;
-    }
-    i++;
-  }
-}
 
 /********************************************************************************************************************************************
                                                       FINGERPRINT SCANNER FUNCTIONS               
@@ -353,25 +267,25 @@ extern HardwareSerial fingerprintSerial;
 uint8_t getFingerprintEnroll(int id) {
   
   int p = -1;
-  typeString("Waiting for valid finger to enroll as #"); typeString(id, 0, 80);
+  Serial.print("Waiting for valid finger to enroll as #"); Serial.println(id);
   while (p != FINGERPRINT_OK) {
     p = finger.getImage();
     vTaskDelay(100/ portTICK_PERIOD_MS);
     switch (p) {
     case FINGERPRINT_OK:
-      typeString("Image taken");
+      Serial.println("Image taken");
       break;
     case FINGERPRINT_NOFINGER:
-      typeString(".");
+      Serial.println(".");
       break;
     case FINGERPRINT_PACKETRECIEVEERR:
-      typeString("Communication error");
+      Serial.println("Communication error");
       break;
     case FINGERPRINT_IMAGEFAIL:
-      typeString("Imaging error");
+      Serial.println("Imaging error");
       break;
     default:
-      typeString("Unknown error");
+      Serial.println("Unknown error");
       break;
     }
   }
@@ -381,53 +295,53 @@ uint8_t getFingerprintEnroll(int id) {
   p = finger.image2Tz(1);
   switch (p) {
     case FINGERPRINT_OK:
-      typeString("Image converted");
+      Serial.println("Image converted");
       break;
     case FINGERPRINT_IMAGEMESS:
-      typeString("Image too messy");
+      Serial.println("Image too messy");
       return p;
     case FINGERPRINT_PACKETRECIEVEERR:
-      typeString("Communication error");
+      Serial.println("Communication error");
       return p;
     case FINGERPRINT_FEATUREFAIL:
-      typeString("Could not find fingerprint features");
+      Serial.println("Could not find fingerprint features");
       return p;
     case FINGERPRINT_INVALIDIMAGE:
-      typeString("Could not find fingerprint features");
+      Serial.println("Could not find fingerprint features");
       return p;
     default:
-      typeString("Unknown error");
+      Serial.println("Unknown error");
       return p;
   }
 
-  typeString("Remove finger");
+  Serial.println("Remove finger");
   vTaskDelay(200 / portTICK_PERIOD_MS);
   p = 0;
   while (p != FINGERPRINT_NOFINGER) {
     p = finger.getImage();
     vTaskDelay(100/ portTICK_PERIOD_MS);
   }
-  typeString("ID "); typeString(id, 0, 80);
+  Serial.print("ID "); Serial.println(id);
   p = -1;
-  typeString("Place same finger again");
+  Serial.println("Place same finger again");
   while (p != FINGERPRINT_OK) {
     p = finger.getImage();
     vTaskDelay(100/ portTICK_PERIOD_MS);
     switch (p) {
     case FINGERPRINT_OK:
-      typeString("Image taken");
+      Serial.println("Image taken");
       break;
     case FINGERPRINT_NOFINGER:
-      typeString(".");
+      Serial.println(".");
       break;
     case FINGERPRINT_PACKETRECIEVEERR:
-      typeString("Communication error");
+      Serial.println("Communication error");
       break;
     case FINGERPRINT_IMAGEFAIL:
-      typeString("Imaging error");
+      Serial.println("Imaging error");
       break;
     default:
-      typeString("Unknown error");
+      Serial.println("Unknown error");
       break;
     }
   }
@@ -437,57 +351,57 @@ uint8_t getFingerprintEnroll(int id) {
   p = finger.image2Tz(2);
   switch (p) {
     case FINGERPRINT_OK:
-      typeString("Image converted");
+      Serial.println("Image converted");
       break;
     case FINGERPRINT_IMAGEMESS:
-      typeString("Image too messy");
+      Serial.println("Image too messy");
       return p;
     case FINGERPRINT_PACKETRECIEVEERR:
-      typeString("Communication error");
+      Serial.println("Communication error");
       return p;
     case FINGERPRINT_FEATUREFAIL:
-      typeString("Could not find fingerprint features");
+      Serial.println("Could not find fingerprint features");
       return p;
     case FINGERPRINT_INVALIDIMAGE:
-      typeString("Could not find fingerprint features");
+      Serial.println("Could not find fingerprint features");
       return p;
     default:
-      typeString("Unknown error");
+      Serial.println("Unknown error");
       return p;
   }
 
   // OK converted!
-  typeString("Creating model for #");  typeString(id, 0, 80);
+  Serial.print("Creating model for #");  Serial.println(id);
 
   p = finger.createModel();
   if (p == FINGERPRINT_OK) {
-    typeString("Prints matched!");
+    Serial.println("Prints matched!");
   } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
-    typeString("Communication error");
+    Serial.println("Communication error");
     return p;
   } else if (p == FINGERPRINT_ENROLLMISMATCH) {
-    typeString("Fingerprints did not match");
+    Serial.println("Fingerprints did not match");
     return p;
   } else {
-    typeString("Unknown error");
+    Serial.println("Unknown error");
     return p;
   }
 
-  typeString("ID "); typeString(id, 0, 80);
+  Serial.print("ID "); Serial.println(id);
   p = finger.storeModel(id);
   if (p == FINGERPRINT_OK) {
-    typeString("Stored!");
+    Serial.println("Stored!");
   } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
-    typeString("Communication error");
+    Serial.println("Communication error");
     return p;
   } else if (p == FINGERPRINT_BADLOCATION) {
-    typeString("Could not store in that location");
+    Serial.println("Could not store in that location");
     return p;
   } else if (p == FINGERPRINT_FLASHERR) {
-    typeString("Error writing to flash");
+    Serial.println("Error writing to flash");
     return p;
   } else {
-    typeString("Unknown error");
+    Serial.println("Unknown error");
     return p;
   }
 
@@ -498,19 +412,19 @@ uint8_t getFingerprintID() {
   uint8_t p = finger.getImage();
   switch (p) {
     case FINGERPRINT_OK:
-      typeString("Image taken");
+      Serial.println("Image taken");
       break;
     case FINGERPRINT_NOFINGER:
-      typeString("No finger detected");
+      Serial.println("No finger detected");
       return p;
     case FINGERPRINT_PACKETRECIEVEERR:
-      typeString("Communication error");
+      Serial.println("Communication error");
       return p;
     case FINGERPRINT_IMAGEFAIL:
-      typeString("Imaging error");
+      Serial.println("Imaging error");
       return p;
     default:
-      typeString("Unknown error");
+      Serial.println("Unknown error");
       return p;
   }
 
@@ -519,43 +433,43 @@ uint8_t getFingerprintID() {
   p = finger.image2Tz();
   switch (p) {
     case FINGERPRINT_OK:
-      typeString("Image converted");
+      Serial.println("Image converted");
       break;
     case FINGERPRINT_IMAGEMESS:
-      typeString("Image too messy");
+      Serial.println("Image too messy");
       return p;
     case FINGERPRINT_PACKETRECIEVEERR:
-      typeString("Communication error");
+      Serial.println("Communication error");
       return p;
     case FINGERPRINT_FEATUREFAIL:
-      typeString("Could not find fingerprint features");
+      Serial.println("Could not find fingerprint features");
       return p;
     case FINGERPRINT_INVALIDIMAGE:
-      typeString("Could not find fingerprint features");
+      Serial.println("Could not find fingerprint features");
       return p;
     default:
-      typeString("Unknown error");
+      Serial.println("Unknown error");
       return p;
   }
 
   // OK converted!
   p = finger.fingerSearch();
   if (p == FINGERPRINT_OK) {
-    typeString("Found a print match!");
+    Serial.println("Found a print match!");
   } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
-    typeString("Communication error");
+    Serial.println("Communication error");
     return p;
   } else if (p == FINGERPRINT_NOTFOUND) {
-    typeString("Did not find a match");
+    Serial.println("Did not find a match");
     return p;
   } else {
-    typeString("Unknown error");
+    Serial.println("Unknown error");
     return p;
   }
 
   // found a match!
-  typeString("Found ID #"); typeString(finger.fingerID, 0, 80);
-  typeString(" with confidence of "); typeString(finger.confidence, 0, 80);
+  Serial.print("Found ID #"); Serial.println(finger.fingerID);
+  Serial.print(" with confidence of "); Serial.println(finger.confidence);
 
   return finger.fingerID;
 }
@@ -572,8 +486,8 @@ int getFingerprintIDez() {
   if (p != FINGERPRINT_OK)  return -1;
 
   // found a match!
-  typeString("Found ID #"); typeString(finger.fingerID, 0, 80);
-  typeString(" with confidence of "); typeString(finger.confidence, 0, 80);
+  Serial.print("Found ID #"); Serial.println(finger.fingerID);
+  Serial.print(" with confidence of "); Serial.println(finger.confidence);
   return finger.fingerID;
 }
 
@@ -584,36 +498,36 @@ void printHex(int num, int precision) {
   sprintf(format, "%%.%dX", precision);
 
   sprintf(tmp, format, num);
-  typeString(tmp);
+  Serial.println(tmp);
 }
 
 uint8_t downloadFingerprintTemplate(uint16_t id)
 {
-  typeString("------------------------------------");
-  typeString("Attempting to load #"); typeString(id, 0, 80);
+  Serial.println("------------------------------------");
+  Serial.print("Attempting to load #"); Serial.println(id);
   uint8_t p = finger.loadModel(id);
   switch (p) {
     case FINGERPRINT_OK:
-      typeString("Template "); typeString(id, 0, 80); typeString(" loaded");
+      Serial.print("Template "); Serial.print(id); Serial.println(" loaded");
       break;
     case FINGERPRINT_PACKETRECIEVEERR:
-      typeString("Communication error");
+      Serial.println("Communication error");
       return p;
     default:
-      typeString("Unknown error "); typeString(p, 0, 80);
+      Serial.print("Unknown error "); Serial.println(p);
       return p;
   }
 
   // OK success!
 
-  typeString("Attempting to get #"); typeString(id, 0, 80);
+  Serial.print("Attempting to get #"); Serial.println(id);
   p = finger.getModel();
   switch (p) {
     case FINGERPRINT_OK:
-      typeString("Template "); typeString(id, 0, 80); typeString(" transferring:");
+      Serial.print("Template "); Serial.print(id); Serial.println(" transferring:");
       break;
     default:
-      typeString("Unknown error "); typeString(p, 0, 80);
+      Serial.print("Unknown error "); Serial.println(p);
       return p;
   }
 
@@ -628,8 +542,8 @@ uint8_t downloadFingerprintTemplate(uint16_t id)
       bytesReceived[i++] = fingerprintSerial.read();
     }
   }
-  typeString(i, 0, 80); typeString(" bytes read.");
-  typeString("Decoding packet...");
+  Serial.print(i); Serial.println(" bytes read.");
+  Serial.println("Decoding packet...");
 
   uint8_t fingerTemplate[512]; // the real template
   memset(fingerTemplate, 0xff, 512);
@@ -644,11 +558,11 @@ uint8_t downloadFingerprintTemplate(uint16_t id)
   memcpy(fingerTemplate + index, bytesReceived + uindx, 256);   // second 256 bytes
 
   for (int i = 0; i < 512; ++i) {
-    //typeString("0x");
+    //Serial.println("0x");
     printHex(fingerTemplate[i], 2);
-    //typeString(", ");
+    //Serial.println(", ");
   }
-  typeString("\ndone.");
+  Serial.println("\ndone.");
 
   return p;
 
@@ -666,17 +580,284 @@ uint8_t downloadFingerprintTemplate(uint16_t id)
   }
   }
 
-  typeString(index); typeString(" bytes read");
+  Serial.println(index); Serial.println(" bytes read");
 
   //dump entire templateBuffer.  This prints out 16 lines of 16 bytes
   for (int count= 0; count < 16; count++)
   {
   for (int i = 0; i < 16; i++)
   {
-    typeString("0x");
-    typeString(templateBuffer[count*16+i], HEX);
-    typeString(", ");
+    Serial.println("0x");
+    Serial.println(templateBuffer[count*16+i], HEX);
+    Serial.println(", ");
   }
-  typeString();
+  Serial.println();
   }*/
+}
+
+/********************************************************************************************************************************************
+                                                        FILE MANAGEMENT FUNCTIONS               
+*********************************************************************************************************************************************/  
+
+u8_t listDir(fs::FS &fs, const char *dirname, uint8_t levels) {
+  u8_t fileNum = 0;
+  Serial.printf("Listing directory: %s\n", dirname);
+
+  fs::File root = fs.open(dirname);
+  if (!root) {
+    Serial.println("Failed to open directory");
+    return 0;
+  }
+  if (!root.isDirectory()) {
+    Serial.println("Not a directory");
+    return 0;
+  }
+
+  fs::File file = root.openNextFile();
+  while (file) {
+    if (file.isDirectory()) {
+      Serial.print("  DIR : ");
+      Serial.print(file.name());
+      time_t t = file.getLastWrite();
+      struct tm *tmstruct = localtime(&t);
+      Serial.printf(
+        "  LAST WRITE: %d-%02d-%02d %02d:%02d:%02d\n", (tmstruct->tm_year) + 1900, (tmstruct->tm_mon) + 1, tmstruct->tm_mday, tmstruct->tm_hour,
+        tmstruct->tm_min, tmstruct->tm_sec
+      );
+      if (levels) {
+        listDir(fs, file.path(), levels - 1);
+      }
+    } 
+    else {
+      Serial.print("  FILE: ");
+      Serial.print(file.name());
+      strncpy( studentClassLabels[fileNum], file.name(), 11); //put names of files in the directory in the list
+      Serial.print("  SIZE: ");
+      Serial.print(file.size());
+      time_t t = file.getLastWrite();
+      struct tm *tmstruct = localtime(&t);
+      Serial.printf(
+        "  LAST WRITE: %d-%02d-%02d %02d:%02d:%02d\n", (tmstruct->tm_year) + 1900, (tmstruct->tm_mon) + 1, tmstruct->tm_mday, tmstruct->tm_hour,
+        tmstruct->tm_min, tmstruct->tm_sec
+      );
+      fileNum++;
+    }
+    file = root.openNextFile();
+  }
+  return fileNum; //return total number of files in directory
+}
+
+void createDir(fs::FS &fs, const char *path) {
+  Serial.printf("Creating Dir: %s\n", path);
+  if (fs.mkdir(path)) {
+    Serial.println("Dir created");
+  } else {
+    Serial.println("mkdir failed");
+  }
+}
+
+void removeDir(fs::FS &fs, const char *path) {
+  Serial.printf("Removing Dir: %s\n", path);
+  if (fs.rmdir(path)) {
+    Serial.println("Dir removed");
+  } else {
+    Serial.println("rmdir failed");
+  }
+}
+
+void readFile(fs::FS &fs, const char *path) {
+  Serial.printf("Reading file: %s\n", path);
+
+  fs::File file = fs.open(path);
+  if (!file) {
+    Serial.println("Failed to open file for reading");
+    return;
+  }
+
+  Serial.print("Read from file: ");
+  while (file.available()) {
+    Serial.write(file.read());
+  }
+  file.close();
+}
+
+void writeFile(fs::FS &fs, const char *path, const char *message) {
+  Serial.printf("Writing file: %s\n", path);
+
+  fs::File file = fs.open(path, FILE_WRITE);
+  if (!file) {
+    Serial.println("Failed to open file for writing");
+    return;
+  }
+  if (file.print(message)) {
+    Serial.println("File written");
+  } else {
+    Serial.println("Write failed");
+  }
+  file.close();
+}
+
+void appendFile(fs::FS &fs, const char *path, const char *message) {
+  Serial.printf("Appending to file: %s\n", path);
+
+  fs::File file = fs.open(path, FILE_APPEND);
+  if (!file) {
+    Serial.println("Failed to open file for appending");
+    return;
+  }
+  if (file.print(message)) {
+    Serial.println("Message appended");
+  } else {
+    Serial.println("Append failed");
+  }
+  file.close();
+}
+
+void renameFile(fs::FS &fs, const char *path1, const char *path2) {
+  Serial.printf("Renaming file %s to %s\n", path1, path2);
+  if (fs.rename(path1, path2)) {
+    Serial.println("File renamed");
+  } else {
+    Serial.println("Rename failed");
+  }
+}
+
+void deleteFile(fs::FS &fs, const char *path) {
+  Serial.printf("Deleting file: %s\n", path);
+  if (fs.remove(path)) {
+    Serial.println("File deleted");
+  } else {
+    Serial.println("Delete failed");
+  }
+}
+
+
+/********************************************************************************************************************************************
+                                                         WIFI FUNCTIONS               
+*********************************************************************************************************************************************/  
+
+/* FreeRTOS event group to signal when we are connected*/
+EventGroupHandle_t s_wifi_event_group;
+
+extern bool wifiOn;
+
+char wifiSsid[16] = "redmi-black";
+char wifiPassword[16] = "77777777";
+
+
+char *TAG = "wifi station";
+
+static int s_retry_num = 0;
+
+static void event_handler(void* arg, esp_event_base_t event_base,
+                                int32_t event_id, void* event_data)
+{
+  if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+    esp_wifi_connect();
+  } 
+  else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+    if (s_retry_num < 3) {
+      vTaskDelay(20 / portTICK_PERIOD_MS);
+      esp_wifi_connect();
+      s_retry_num++;
+      tft.textcolor = TFT_YELLOW;
+      tft.setFreeFont(&FreeSans9pt7b);
+      tft.fillRect(110, 130, 180, 22, 0x3186);
+      tft.textbgcolor = 0x3186;
+      tft.drawString("Retrying to connect", 110, 130);
+      ESP_LOGI(TAG, "retry to connect to the AP");
+    } 
+    else {
+      s_retry_num = 0;
+      vTaskDelay(20 / portTICK_PERIOD_MS);
+      xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
+      wifiOn = false;
+      tft.textcolor = TFT_RED;
+      tft.setFreeFont(&FreeSans9pt7b);
+      tft.fillRect(110, 130, 180, 22, 0x3186);
+      tft.textbgcolor = 0x3186;
+      tft.drawString("FAILED TO CONNECT", 110, 130);
+    }
+    ESP_LOGI(TAG,"connect to the AP fail");
+    wifiOn = false;
+  } 
+  else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+    ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+    ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+    s_retry_num = 0;
+    xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+    wifiOn = true;
+    tft.textcolor = TFT_GREEN;
+    tft.setFreeFont(&FreeSans9pt7b);
+    tft.fillRect(110, 130, 180, 22, 0x3186);
+    tft.textbgcolor = 0x3186;
+    tft.drawString("CONNECTED", 115, 130);
+  }
+}
+
+extern "C" void wifi_init_sta(void)
+{
+  s_wifi_event_group = xEventGroupCreate();
+
+  ESP_ERROR_CHECK(esp_netif_init());
+
+  ESP_ERROR_CHECK(esp_event_loop_create_default());
+  esp_netif_create_default_wifi_sta();
+
+  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+  esp_event_handler_instance_t instance_any_id;
+  esp_event_handler_instance_t instance_got_ip;
+  ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+                                                      ESP_EVENT_ANY_ID,
+                                                      &event_handler,
+                                                      NULL,
+                                                      &instance_any_id));
+  ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+                                                      IP_EVENT_STA_GOT_IP,
+                                                      &event_handler,
+                                                      NULL,
+                                                      &instance_got_ip));
+
+  wifi_config_t wifi_config = {
+    .sta = {
+      .ssid = "redmi-black" ,
+      .password = "77777777",
+      /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
+        * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
+        * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
+        * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
+        */
+      .threshold = {.rssi = -90, .authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD, .rssi_5g_adjustment = 20},
+      .sae_pwe_h2e = ESP_WIFI_SAE_MODE,
+      .sae_h2e_identifier = EXAMPLE_H2E_IDENTIFIER,
+    },
+  };
+  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
+  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
+  ESP_ERROR_CHECK(esp_wifi_start() );
+
+  ESP_LOGI(TAG, "wifi_init_sta finished.");
+
+  /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
+    * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
+  EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+          WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+          pdFALSE,
+          pdFALSE,
+          portMAX_DELAY);
+
+  /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
+    * happened. */
+  if (bits & WIFI_CONNECTED_BIT) {
+    ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
+              wifiSsid, wifiPassword);
+    
+  } else if (bits & WIFI_FAIL_BIT) {
+      ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
+                wifiSsid, wifiPassword);
+  } else {
+      ESP_LOGE(TAG, "UNEXPECTED EVENT");
+  }
 }

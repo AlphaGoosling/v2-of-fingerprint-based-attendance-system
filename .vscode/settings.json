@@ -25,6 +25,14 @@
         "span": "cpp",
         "text_encoding": "cpp",
         "regex": "cpp",
-        "fstream": "cpp"
-    }
+        "fstream": "cpp",
+        "cstring": "cpp",
+        "variant": "cpp",
+        "*.inc": "cpp",
+        "future": "cpp"
+    },
+    "idf.customExtraVars": {
+        "IDF_TARGET": "esp32"
+    },
+    "search.useIgnoreFiles": false
 }
