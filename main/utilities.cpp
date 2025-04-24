@@ -1,16 +1,109 @@
 #include "utilities.h"
+extern TFT_eSPI tft;
+extern uint8_t onScreen;
+extern struct golioth_client *client;
+extern TaskHandle_t NetworkTaskHandler;
+/********************************************************************************************************************************************
+                                                         WIFI FUNCTIONS               
+*********************************************************************************************************************************************/  
+
+/* FreeRTOS event group to signal when we are connected*/
+EventGroupHandle_t s_wifi_event_group;
+
+extern bool wifiOn;
+
+char wifiSsid[16] = "redmi-black";
+char wifiPassword[16] = "77777777";
+
+
+char *TAG_W = "wifi station";
+
+static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data){
+  if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+    esp_wifi_connect(); 
+  } 
+
+  else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) { 
+    wifiOn = false;
+    if (onScreen == WIFI_MENU){
+      tft.textcolor = TFT_RED;
+      tft.setFreeFont(&FreeSans9pt7b);
+      tft.fillRect(110, 130, 180, 22, 0x3186);
+      tft.textbgcolor = 0x3186;
+      tft.drawString("DISCONNECTED", 110, 130);
+    }
+    ESP_ERROR_CHECK(esp_wifi_stop());
+  } 
+  
+  else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+    ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+    ESP_LOGI(TAG_W, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+    xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+    wifiOn = true;
+    if (onScreen == WIFI_MENU){
+      tft.textcolor = TFT_GREEN;
+      tft.setFreeFont(&FreeSans9pt7b);
+      tft.fillRect(110, 130, 180, 22, 0x3186);
+      tft.textbgcolor = 0x3186;
+      tft.drawString("CONNECTED", 115, 130);
+    }
+  }
+}
+
+extern "C" void wifi_init_sta(void)
+{
+  s_wifi_event_group = xEventGroupCreate();
+
+  ESP_ERROR_CHECK(esp_netif_init());
+
+  ESP_ERROR_CHECK(esp_event_loop_create_default());
+  esp_netif_create_default_wifi_sta();
+
+  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+  esp_event_handler_instance_t instance_any_id;
+  esp_event_handler_instance_t instance_got_ip;
+  ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+                                                      ESP_EVENT_ANY_ID,
+                                                      &event_handler,
+                                                      NULL,
+                                                      &instance_any_id));
+  ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+                                                      IP_EVENT_STA_GOT_IP,
+                                                      &event_handler,
+                                                      NULL,
+                                                      &instance_got_ip));
+  wifi_config_t wifi_config = {
+    .sta = {
+      .ssid = "redmi-black" ,
+      .password = "77777777",
+      /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
+        * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
+        * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
+        * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
+        */
+      .threshold = {.rssi = -90, .authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD, .rssi_5g_adjustment = 20},
+      .sae_pwe_h2e = ESP_WIFI_SAE_MODE,
+      .sae_h2e_identifier = EXAMPLE_H2E_IDENTIFIER,
+    },
+  };
+  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
+  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
+  //ESP_ERROR_CHECK(esp_wifi_start() );
+
+  ESP_LOGI(TAG_W, "wifi_init_sta finished.");
+}
+
 
 /********************************************************************************************************************************************
                                                          DISPLAY FUNCTIONS               
 *********************************************************************************************************************************************/  
-
-extern TFT_eSPI tft;
-
-u8_t attendanceFileNum = 0;
-
-uint8_t onScreen; // keeps track of what is displayed on screen
+extern u8_t attendanceFileNum;
 bool keyboardOnScreen = false;
-bool wifiOn = false;
+extern bool wifiOn;
 
 TFT_eSPI_Button keyboardKeys[40];    //keyboard buttons 
 TFT_eSPI_Button mainMenuKeys[5]; //main menu buttons
@@ -19,11 +112,12 @@ TFT_eSPI_Button BackButton;
 TFT_eSPI_Button PasswordField;
 TFT_eSPI_Button WifiSsidField;
 TFT_eSPI_Button WifiOnOffButton;
+TFT_eSPI_Button TakeAttendanceButton;
 
 char keyboardKeyLabels[40] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 
                                     'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', '>', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', ' ', ' ', '<' };
 
-char *mainMenuKeyLabels[5] = {"WiFi", "Register Attendance", "Add new Student", "Delete Student Entry", "Sync With Server"};
+char *mainMenuKeyLabels[5] = {"WiFi", "Register Attendance", "Add new Entry", "Delete Entry", "Sync With Server"};
 
 char studentClassLabels[8][16];
 
@@ -145,31 +239,31 @@ void drawRegisterAttendanceMenu(){
   tft.textbgcolor = TFT_BLACK;
   tft.setFreeFont(MAINMENU_FONT);
   //tft.setTextDatum(TL_DATUM); 
-  tft.drawString("REGISTER ATTENDANCE", 12, 30);
+  tft.drawString("LOAD CLASS FILE", 12, 30);
 
   tft.setFreeFont(&FreeSans9pt7b);
   Serial.print("Number of attendance data files in littlefs storage: "); Serial.println(attendanceFileNum); Serial.println(" ");
 
-  tft.fillRoundRect(40, 70, 240, 220, 10, 0x3186);
-  for (u8_t i = 0; i < 8; i++){
-    if (i >= attendanceFileNum){
-      strncpy(studentClassLabels[i], "        \0", 10);
-    }
+  tft.fillRoundRect(40, 70, 240, 80 + 40 * attendanceFileNum, 10, 0x3186);
+  for (u8_t i = 0; i < attendanceFileNum; i++){
     Serial.print("studentClassLabels[i]: "); Serial.println(studentClassLabels[i]);
     studentClasses[i].initButton(&tft, 95, 90 + i * 40, 100, 30, 0x3186, 0x3186, TFT_WHITE, studentClassLabels[i], KEY_TEXTSIZE);
     studentClasses[i].drawButton();
   }
 
-  tft.textcolor = TFT_GREEN;
-  tft.textbgcolor = 0x3186;
-  tft.setFreeFont(&FreeSerifItalic9pt7b);
-  tft.drawString("#Select a students list to be used", 48, 245);
-  tft.drawString("to register attendance", 48, 265);
-  tft.fillRect(0, 290, 320, 150, TFT_BLACK);
-
   for (u8_t i = 0; i < attendanceFileNum; i++){
     tft.drawLine(45, 97 + i * 40, 147, 97 + i * 40, TFT_WHITE);
   }
+
+  tft.textcolor = TFT_GREEN;
+  tft.textbgcolor = 0x3186;
+  tft.setFreeFont(&FreeSerifItalic9pt7b);
+  tft.drawString("#Select a students list to be used", 48, 65 + 40 * attendanceFileNum);
+  tft.drawString("to register attendance", 48, 85 + 40 * attendanceFileNum);
+
+  tft.setFreeFont(&FreeSans9pt7b);
+  TakeAttendanceButton.initButton(&tft, 275, 270 + 40 * attendanceFileNum, 120, 30, TFT_DARKGREY, TFT_GREEN, TFT_WHITE, "Take Attendance", KEY_TEXTSIZE);
+  TakeAttendanceButton.drawButton();
 
   tft.setFreeFont(&FreeSans9pt7b);
   BackButton.initButton(&tft, 275, 455, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
@@ -731,133 +825,3 @@ void deleteFile(fs::FS &fs, const char *path) {
   }
 }
 
-
-/********************************************************************************************************************************************
-                                                         WIFI FUNCTIONS               
-*********************************************************************************************************************************************/  
-
-/* FreeRTOS event group to signal when we are connected*/
-EventGroupHandle_t s_wifi_event_group;
-
-extern bool wifiOn;
-
-char wifiSsid[16] = "redmi-black";
-char wifiPassword[16] = "77777777";
-
-
-char *TAG = "wifi station";
-
-static int s_retry_num = 0;
-
-static void event_handler(void* arg, esp_event_base_t event_base,
-                                int32_t event_id, void* event_data)
-{
-  if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-    esp_wifi_connect();
-  } 
-  else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-    if (s_retry_num < 3) {
-      vTaskDelay(20 / portTICK_PERIOD_MS);
-      esp_wifi_connect();
-      s_retry_num++;
-      tft.textcolor = TFT_YELLOW;
-      tft.setFreeFont(&FreeSans9pt7b);
-      tft.fillRect(110, 130, 180, 22, 0x3186);
-      tft.textbgcolor = 0x3186;
-      tft.drawString("Retrying to connect", 110, 130);
-      ESP_LOGI(TAG, "retry to connect to the AP");
-    } 
-    else {
-      s_retry_num = 0;
-      vTaskDelay(20 / portTICK_PERIOD_MS);
-      xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
-      wifiOn = false;
-      tft.textcolor = TFT_RED;
-      tft.setFreeFont(&FreeSans9pt7b);
-      tft.fillRect(110, 130, 180, 22, 0x3186);
-      tft.textbgcolor = 0x3186;
-      tft.drawString("FAILED TO CONNECT", 110, 130);
-    }
-    ESP_LOGI(TAG,"connect to the AP fail");
-    wifiOn = false;
-  } 
-  else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-    ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-    ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-    s_retry_num = 0;
-    xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
-    wifiOn = true;
-    tft.textcolor = TFT_GREEN;
-    tft.setFreeFont(&FreeSans9pt7b);
-    tft.fillRect(110, 130, 180, 22, 0x3186);
-    tft.textbgcolor = 0x3186;
-    tft.drawString("CONNECTED", 115, 130);
-  }
-}
-
-extern "C" void wifi_init_sta(void)
-{
-  s_wifi_event_group = xEventGroupCreate();
-
-  ESP_ERROR_CHECK(esp_netif_init());
-
-  ESP_ERROR_CHECK(esp_event_loop_create_default());
-  esp_netif_create_default_wifi_sta();
-
-  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
-  esp_event_handler_instance_t instance_any_id;
-  esp_event_handler_instance_t instance_got_ip;
-  ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                                                      ESP_EVENT_ANY_ID,
-                                                      &event_handler,
-                                                      NULL,
-                                                      &instance_any_id));
-  ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-                                                      IP_EVENT_STA_GOT_IP,
-                                                      &event_handler,
-                                                      NULL,
-                                                      &instance_got_ip));
-
-  wifi_config_t wifi_config = {
-    .sta = {
-      .ssid = "redmi-black" ,
-      .password = "77777777",
-      /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
-        * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
-        * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
-        * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
-        */
-      .threshold = {.rssi = -90, .authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD, .rssi_5g_adjustment = 20},
-      .sae_pwe_h2e = ESP_WIFI_SAE_MODE,
-      .sae_h2e_identifier = EXAMPLE_H2E_IDENTIFIER,
-    },
-  };
-  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-  ESP_ERROR_CHECK(esp_wifi_start() );
-
-  ESP_LOGI(TAG, "wifi_init_sta finished.");
-
-  /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
-    * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
-  EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-          WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-          pdFALSE,
-          pdFALSE,
-          portMAX_DELAY);
-
-  /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
-    * happened. */
-  if (bits & WIFI_CONNECTED_BIT) {
-    ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
-              wifiSsid, wifiPassword);
-    
-  } else if (bits & WIFI_FAIL_BIT) {
-      ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
-                wifiSsid, wifiPassword);
-  } else {
-      ESP_LOGE(TAG, "UNEXPECTED EVENT");
-  }
-}

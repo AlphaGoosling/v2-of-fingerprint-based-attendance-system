@@ -1,12 +1,13 @@
 #include "utilities.h"
 
-extern char *TAG;
-extern EventGroupHandle_t s_wifi_event_group;
-bool networkTaskcreated = false;
-
-extern u8_t attendanceFileNum;
-
 #define FORMAT_LITTLEFS_IF_FAILED true
+
+struct golioth_client *client;
+
+bool wifiOn = false;
+
+u8_t attendanceFileNum = 0;
+
 long timezone = 1;
 byte daysavetime = 1;
 
@@ -14,9 +15,9 @@ TFT_eSPI tft = TFT_eSPI();
 
 char charBuffer[CHAR_LEN + 1] = "";
 uint8_t charIndex = 0;
-extern uint8_t onScreen;
+
+uint8_t onScreen; // keeps track of what is displayed on screen
 extern bool keyboardOnScreen;
-extern bool wifiOn;
 extern TFT_eSPI_Button keyboardKeys[40];    //keyboard buttons 
 extern TFT_eSPI_Button mainMenuKeys[5]; //main menu buttons
 extern TFT_eSPI_Button studentClasses[8];
@@ -24,6 +25,7 @@ extern TFT_eSPI_Button BackButton;
 extern TFT_eSPI_Button WifiOnOffButton;
 extern TFT_eSPI_Button WifiSsidField;
 extern TFT_eSPI_Button PasswordField;
+extern TFT_eSPI_Button TakeAttendanceButton;
 extern char keyboardKeyLabels[40];
 
 TaskHandle_t DisplayTaskHandler = NULL;
@@ -73,6 +75,8 @@ extern "C" void app_main()
   Serial.println("List of files in root directory");
   attendanceFileNum = listDir(LittleFS, "/", 1);
 
+  xTaskCreate(Network_Task, "Network", 4096, NULL, 4, &NetworkTaskHandler);
+  vTaskDelay(500 / portTICK_PERIOD_MS);
   xTaskCreate(Display_Task, "Display", 4096, NULL, 3, &DisplayTaskHandler);
 }
 
@@ -85,25 +89,24 @@ void Display_Task(void *arg){
   tft.setRotation(0);
   tft.fillScreen(TFT_BLACK);
 
-  uint16_t calData[5] = { 225, 3565, 221, 3705, 7 };
+  uint16_t calData[5] = { 896, 2082, 237, 3618, 7 };
   tft.setTouch(calData);
 
   drawMainmenu();
 
   static int xwidth = 0;
   while(1){
-    //printf("%li\n", loop_count);
-  
     uint16_t t_x = 0, t_y = 0; // To store the touch coordinates
-    static uint16_t box_x = 0, box_y = 0; // To store the coordinates of the box where text can be entered   
+    static uint16_t box_x = 0, box_y = 0; // To store the coordinates of the box where text can be entered  
+    u8_t box = NONE; //To keep track of the last textbox clicked by the user
+    bool pressed = tft.getTouch(&t_x, &t_y); // Pressed will be set true is there is a valid touch on the screen
 
-    // Pressed will be set true is there is a valid touch on the screen
-    bool pressed = tft.getTouch(&t_x, &t_y);
+    vTaskDelay(100 / portTICK_PERIOD_MS); // UI debouncing
 
-
-
+    if(!pressed) continue;
     switch (onScreen){
 /**************************************************************************************/
+      printf("User pressed :  %i , %i \n", t_x, t_y);
       case MAINMENU:
         //Checking if any key coordinate boxes contain the touch coordinates
         for (uint8_t i = 0; i < 5; i++) {
@@ -152,73 +155,52 @@ void Display_Task(void *arg){
         if (pressed && WifiSsidField.contains(t_x, t_y)) {WifiSsidField.press(true);} 
         else { WifiSsidField.press(false);}
 
-        if (pressed && PasswordField.contains(t_x, t_y)) {PasswordField.press(true);} 
+        if (pressed && PasswordField.contains(t_x, t_y)) {PasswordField.press(true);}
         else {PasswordField.press(false);}      
         
 
         if (WifiOnOffButton.justPressed()) {
-          if(wifiOn){
-            for (u8_t i = 1; i <= 7; i++)
-            {
-              tft.fillRoundRect(104, 86, 45, 24, 12, TFT_DARKGREEN + ((0x780F/7)*i));
-              tft.drawRoundRect(104, 86, 45, 24, 12, TFT_BLACK);
-              tft.fillCircle(136 - ((21/7)*i), 97, 8, TFT_WHITE);
-              vTaskDelay(20 / portTICK_PERIOD_MS);
-            }
-            //golioth_client_destroy(client);
-            esp_wifi_stop();
-            //esp_wifi_disconnect();
-            xTaskAbortDelay(DisplayTaskHandler);
-            xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
-            wifiOn = false;
-            tft.textcolor = wifiOn ? TFT_GREEN : TFT_RED;
-            tft.setFreeFont(&FreeSans9pt7b);
-            tft.fillRect(110, 130, 180, 22, 0x3186);
-            tft.textbgcolor = 0x3186;
-            tft.drawString(wifiOn? "CONNECTED" : "DISCONNECTED", 115, 130);
-            vTaskDelay(20 / portTICK_PERIOD_MS);
-          } 
-          else {
-            for (u8_t i = 1; i <= 7; i++)
-            {
+          if(!wifiOn){
+            for (u8_t i = 1; i <= 7; i++){
               tft.fillRoundRect(104, 86, 45, 24, 12, TFT_DARKGREY - ((0x780F/7)*i));
               tft.drawRoundRect(104, 86, 45, 24, 12, TFT_BLACK);
               tft.fillCircle(115 + ((21/7)*i), 97, 8, TFT_WHITE);
               vTaskDelay(20 / portTICK_PERIOD_MS);
             }
-            
-            if (!networkTaskcreated){
-              xTaskCreate(Network_Task, "Network", 4096, NULL, 4, &NetworkTaskHandler);
-              networkTaskcreated = true;
+            esp_wifi_start();
+            golioth_client_start(client);
+            vTaskResume(NetworkTaskHandler);
+          } 
+          else {
+            for (u8_t i = 1; i <= 7; i++){
+              tft.fillRoundRect(104, 86, 45, 24, 12, TFT_DARKGREEN + ((0x780F/7)*i));
+              tft.drawRoundRect(104, 86, 45, 24, 12, TFT_BLACK);
+              tft.fillCircle(136 - ((21/7)*i), 97, 8, TFT_WHITE);
+              vTaskDelay(20 / portTICK_PERIOD_MS);
             }
-            else{
-              esp_wifi_connect();
-              esp_wifi_start();
-              //client = golioth_client_create(&config);
-              xTaskAbortDelay(DisplayTaskHandler);
-            } 
-          }
+            golioth_client_stop(client); 
+            vTaskSuspend(NetworkTaskHandler);
+            esp_wifi_disconnect();
+          }  
         }
 
-        if (WifiSsidField.justPressed()) {
+        if(WifiSsidField.justPressed()) {
           charIndex = 0;
           charBuffer[charIndex] = 0;
           box_x = (WifiSsidField.topleftcorner() >> 16); 
-          box_y = ((WifiSsidField.topleftcorner() << 16) >> 16);
+          box_y = (WifiSsidField.topleftcorner());
           tft.fillRect(box_x + 4, box_y + 7, 164, 18, 0x3186);
-          printf("Pressed ssid field\n"); 
-          printf("%i, %i\n", box_x, box_y);
-          if(!keyboardOnScreen)drawKeyboard();
+          printf("Pressed ssid field\n"); printf("%i, %i\n", box_x, box_y);
+          if(!keyboardOnScreen)drawKeyboard(); 
         }
 
-        if (PasswordField.justPressed()) {
+        if(PasswordField.justPressed()) {
           charIndex = 0;
           charBuffer[charIndex] = 0;
           box_x = (PasswordField.topleftcorner() >> 16); 
           box_y = ((PasswordField.topleftcorner() << 16) >> 16);
           tft.fillRect(box_x + 4, box_y + 7, 164, 18, 0x3186);
-          printf("Pressed password field\n"); 
-          printf("%i, %i\n", box_x, box_y);
+          printf("Pressed password field\n"); printf("%i, %i\n", box_x, box_y);
           if(!keyboardOnScreen)drawKeyboard();
         }
         break;
@@ -234,7 +216,6 @@ void Display_Task(void *arg){
         }
         // Checking if any key has changed state
         for (uint8_t i = 0; i < attendanceFileNum; i++) {
-          if (studentClasses[i].justReleased()) studentClasses[i].drawButton();     // draw normal
 
           if (studentClasses[i].justPressed()) {
             studentClasses[i].drawButton(true);  // draw invert
@@ -245,17 +226,21 @@ void Display_Task(void *arg){
             //when they do display their name and student number with the words attendance confirmed
             //do again until 
           }
+          else{
+            studentClasses[i].drawButton(false);  // draw normal
+          }
+          tft.drawLine(45, 97 + i * 40, 147, 97 + i * 40, TFT_WHITE);
         }
         break;
-/**************************************************************************************/
+      /**************************************************************************************/
       case ADD_NEW_STUDENT:
       
         break;
-/**************************************************************************************/
+      /**************************************************************************************/
       case DELETE_STUDENT_ENTRY:
       
         break;
-/**************************************************************************************/
+      /**************************************************************************************/
       case SYNC_WITH_SERVER:
       
         break;
@@ -264,7 +249,7 @@ void Display_Task(void *arg){
         break;
     }
 
-/**************************************************************************************/
+    /**************************************************************************************/
     if (keyboardOnScreen == true){
       for (uint8_t i = 0; i < 40; i++) {
         if (pressed && keyboardKeys[i].contains(t_x, t_y)) {
@@ -321,24 +306,22 @@ void Display_Task(void *arg){
       }
     }
 
-/**************************************************************************************/
-    if (onScreen != MAINMENU){
-      if (pressed && BackButton.contains(t_x, t_y)) {
-        BackButton.press(true);  // tell the button it is pressed
-      } 
-      else {
-        BackButton.press(false);  // tell the button it is NOT pressed
-      }
-
-      if (BackButton.justReleased()) BackButton.drawButton();     // draw normal
-
-      else if (BackButton.justPressed()) {
-        keyboardOnScreen = false;
-        BackButton.drawButton(true);
-        drawMainmenu();
-      }
+    /**************************************************************************************/
+    if (pressed && BackButton.contains(t_x, t_y)) {
+      BackButton.press(true);  // tell the button it is pressed
+    } 
+    else {
+      BackButton.press(false);  // tell the button it is NOT pressed
     }
-    vTaskDelay(20 / portTICK_PERIOD_MS); // UI debouncing
+
+    if (BackButton.justReleased()) BackButton.drawButton();     // draw normal
+
+    else if (BackButton.justPressed()) {
+      keyboardOnScreen = false;
+      BackButton.drawButton(true);
+      drawMainmenu();
+      vTaskDelay(50 / portTICK_PERIOD_MS);
+    }
   }
 }
 
@@ -346,7 +329,7 @@ void Display_Task(void *arg){
                                                       Network Task             
 *********************************************************************************************************************************************/  
 void Network_Task(void *arg){
-  char *TAG = "wifi station";
+  char *TAG_W = "wifi station";
   //Initialize NVS
   esp_err_t ret = nvs_flash_init();
   if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -354,8 +337,7 @@ void Network_Task(void *arg){
     ret = nvs_flash_init();
   }
   ESP_ERROR_CHECK(ret);
-  ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
-  vTaskDelay(1000 / portTICK_PERIOD_MS);
+  ESP_LOGI(TAG_W, "ESP_WIFI_MODE_STA");
   wifi_init_sta();
 
   extern char* psk_id;
@@ -373,7 +355,7 @@ void Network_Task(void *arg){
     }
   };
 
-  struct golioth_client *client = golioth_client_create(&config);
+  client = golioth_client_create(&config);
   assert(client);
   /*
   configTime(3600 * timezone, daysavetime * 3600, "time.nist.gov", "0.pool.ntp.org", "1.pool.ntp.org");
@@ -385,11 +367,32 @@ void Network_Task(void *arg){
     tmstruct.tm_sec
   );
   Serial.println("");*/
-
+  golioth_client_stop(client);
+  vTaskSuspend(NULL);
   uint16_t counter = 0;
   while(1) {
-    GLTH_LOGI(TAG, "Hello, Golioth! #%d", counter);
+    //GLTH_LOGI(TAG_W, "Hello, Golioth! #%d", counter);
+    printf("Golioth counter: %i\n", counter);
     ++counter;
-    vTaskDelay(120000 / portTICK_PERIOD_MS);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
   }  
 }
+
+ /*
+            EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+              WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+              pdFALSE,
+              pdFALSE,
+              portMAX_DELAY);
+    
+            if (bits & WIFI_CONNECTED_BIT) {
+              ESP_LOGI(TAG_W, "connected to ap SSID:%s password:%s",
+                        wifiSsid, wifiPassword);
+              
+            } else if (bits & WIFI_FAIL_BIT) {
+                ESP_LOGI(TAG_W, "Failed to connect to SSID:%s, password:%s",
+                          wifiSsid, wifiPassword);
+            } else {
+                ESP_LOGE(TAG_W, "UNEXPECTED EVENT");
+            }
+            */
