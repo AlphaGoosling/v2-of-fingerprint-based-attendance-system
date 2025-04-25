@@ -5,6 +5,7 @@
 struct golioth_client *client;
 
 bool wifiOn = false;
+bool displayTaskIsSuspended;
 
 u8_t attendanceFileNum = 0;
 
@@ -101,7 +102,9 @@ void Display_Task(void *arg){
     u8_t box = NONE; //To keep track of the last textbox clicked by the user
     bool pressed = tft.getTouch(&t_x, &t_y); // Pressed will be set true is there is a valid touch on the screen
 
-    vTaskDelay(100 / portTICK_PERIOD_MS); // UI debouncing
+    displayTaskIsSuspended = true; // Used to prevent they wifi event handler from trying to use SPI to display stuff on the screen while displayTask may be using it        
+    vTaskDelay(20 / portTICK_PERIOD_MS); // UI debouncing
+    displayTaskIsSuspended = false;
 
     if(!pressed) continue;
     switch (onScreen){
@@ -168,18 +171,13 @@ void Display_Task(void *arg){
               vTaskDelay(20 / portTICK_PERIOD_MS);
             }
             esp_wifi_start();
-            golioth_client_start(client);
-            vTaskResume(NetworkTaskHandler);
           } 
           else {
-            for (u8_t i = 1; i <= 7; i++){
-              tft.fillRoundRect(104, 86, 45, 24, 12, TFT_DARKGREEN + ((0x780F/7)*i));
+            tft.fillRoundRect(104, 86, 45, 24, 12, TFT_WHITE);
+            vTaskDelay(50 / portTICK_PERIOD_MS);
+            tft.fillRoundRect(104, 86, 45, 24, 12, TFT_DARKGREEN);
               tft.drawRoundRect(104, 86, 45, 24, 12, TFT_BLACK);
-              tft.fillCircle(136 - ((21/7)*i), 97, 8, TFT_WHITE);
-              vTaskDelay(20 / portTICK_PERIOD_MS);
-            }
-            golioth_client_stop(client); 
-            vTaskSuspend(NetworkTaskHandler);
+            tft.fillCircle(136, 97, 8, TFT_WHITE);
             esp_wifi_disconnect();
           }  
         }
@@ -320,7 +318,7 @@ void Display_Task(void *arg){
       keyboardOnScreen = false;
       BackButton.drawButton(true);
       drawMainmenu();
-      vTaskDelay(50 / portTICK_PERIOD_MS);
+      vTaskDelay(100 / portTICK_PERIOD_MS);
     }
   }
 }

@@ -3,24 +3,49 @@ extern TFT_eSPI tft;
 extern uint8_t onScreen;
 extern struct golioth_client *client;
 extern TaskHandle_t NetworkTaskHandler;
+extern TaskHandle_t DisplayTaskHandler;
 /********************************************************************************************************************************************
                                                          WIFI FUNCTIONS               
 *********************************************************************************************************************************************/
 
 extern bool wifiOn;
+extern bool displayTaskIsSuspended;
 
 char wifiSsid[32] = "redmi-black";
 char wifiPassword[64] = "77777777";
 
 char *TAG_W = "wifi station";
+char *TAG_D = "Display";
 
 static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data){
+  
+  while (!displayTaskIsSuspended) {vTaskDelay(2/ portTICK_PERIOD_MS);} // block until displayTask calls vTaskDelay to UI debounce and gets suspended
+  
+  vTaskSuspend(DisplayTaskHandler);
+  ESP_LOGI(TAG_W, "Suspended display task");
   if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+    ESP_LOGI(TAG_W, "Attempting to connect to wifi network");
     esp_wifi_connect(); 
   } 
 
   else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) { 
+    
+    ESP_LOGI(TAG_W, "Wifi has disconnected");
     wifiOn = false;
+  
+    if (onScreen == WIFI_MENU){
+      for (u8_t i = 1; i <= 7; i++){
+        tft.fillRoundRect(104, 86, 45, 24, 12, TFT_DARKGREEN + ((0x780F/7)*i));
+        tft.drawRoundRect(104, 86, 45, 24, 12, TFT_BLACK);
+        tft.fillCircle(136 - ((21/7)*i), 97, 8, TFT_WHITE);
+        vTaskDelay(20 / portTICK_PERIOD_MS);
+      }
+    }
+    vTaskSuspend(NetworkTaskHandler);
+    golioth_client_stop(client); 
+    ESP_ERROR_CHECK(esp_wifi_stop());
+    ESP_LOGI(TAG_W, "Wifi has stopped");
+
     if (onScreen == WIFI_MENU){
       tft.textcolor = TFT_RED;
       tft.setFreeFont(&FreeSans9pt7b);
@@ -28,14 +53,17 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
       tft.textbgcolor = 0x3186;
       tft.drawString("DISCONNECTED", 110, 130);
     }
-    ESP_ERROR_CHECK(esp_wifi_stop());
   } 
   
   else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+    ESP_LOGI(TAG_W, "Connected to Wifi network");
     ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
     ESP_LOGI(TAG_W, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
 
     wifiOn = true;
+    golioth_client_start(client);
+    vTaskResume(NetworkTaskHandler);
+
     if (onScreen == WIFI_MENU){
       tft.textcolor = TFT_GREEN;
       tft.setFreeFont(&FreeSans9pt7b);
@@ -44,6 +72,8 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
       tft.drawString("CONNECTED", 115, 130);
     }
   }
+  vTaskResume(DisplayTaskHandler);
+  ESP_LOGI(TAG_W, "Resumed display task");
 }
 
 extern "C" void setWifiCredentials(){
@@ -61,21 +91,16 @@ extern "C" void setWifiCredentials(){
       .sae_h2e_identifier = EXAMPLE_H2E_IDENTIFIER,
     },
   };
-  if (!wifiOn){
-    strncpy((char*)((&wifi_config)->sta.ssid), wifiSsid, 32);
-    strncpy((char*)((&wifi_config)->sta.password), wifiPassword, 64);
+  
+  strncpy((char*)((&wifi_config)->sta.ssid), wifiSsid, 32);
+  strncpy((char*)((&wifi_config)->sta.password), wifiPassword, 64);
 
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-
-    ESP_LOGI(TAG_W, "wifi ssid is %s\n", wifi_config.sta.ssid);
-    ESP_LOGI(TAG_W, "wifi password is %s\n", wifi_config.sta.password);
+  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
+  if (esp_wifi_set_config(WIFI_IF_STA, &wifi_config) == ESP_ERR_WIFI_PASSWORD || esp_wifi_set_config(WIFI_IF_STA, &wifi_config) == ESP_ERR_INVALID_ARG){
+    ;
   }
-  else{
-    ESP_LOGE(TAG_W, "Wifi needs to be off before changing configuration");
-    ESP_LOGE(TAG_W, "Wifi Credentials not set");
-    return;
-  }
+  ESP_LOGI(TAG_W, "wifi ssid is %s", wifi_config.sta.ssid);
+  ESP_LOGI(TAG_W, "wifi password is %s", wifi_config.sta.password);
 }
 
 extern "C" void wifi_init_sta(void)
@@ -101,7 +126,7 @@ extern "C" void wifi_init_sta(void)
                                                       NULL,
                                                       &instance_got_ip));
   setWifiCredentials();
-  ESP_LOGI(TAG_W, "wifi_init_sta finished.");
+  ESP_LOGI(TAG_W, "wifi_init_sta finished.\n");
 }
 
 /********************************************************************************************************************************************
