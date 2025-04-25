@@ -5,16 +5,12 @@ extern struct golioth_client *client;
 extern TaskHandle_t NetworkTaskHandler;
 /********************************************************************************************************************************************
                                                          WIFI FUNCTIONS               
-*********************************************************************************************************************************************/  
-
-/* FreeRTOS event group to signal when we are connected*/
-EventGroupHandle_t s_wifi_event_group;
+*********************************************************************************************************************************************/
 
 extern bool wifiOn;
 
-char wifiSsid[16] = "redmi-black";
-char wifiPassword[16] = "77777777";
-
+char wifiSsid[32] = "redmi-black";
+char wifiPassword[64] = "77777777";
 
 char *TAG_W = "wifi station";
 
@@ -38,9 +34,7 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
   else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
     ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
     ESP_LOGI(TAG_W, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-    xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
 
-    vTaskDelay(50 / portTICK_PERIOD_MS);
     wifiOn = true;
     if (onScreen == WIFI_MENU){
       tft.textcolor = TFT_GREEN;
@@ -52,10 +46,40 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
   }
 }
 
+extern "C" void setWifiCredentials(){
+  wifi_config_t wifi_config = {
+    .sta = {
+      .ssid = "admin" ,
+      .password = "adminpassword",
+      /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
+        * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
+        * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
+        * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
+        */
+      .threshold = {.rssi = -90, .authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD, .rssi_5g_adjustment = 20},
+      .sae_pwe_h2e = ESP_WIFI_SAE_MODE,
+      .sae_h2e_identifier = EXAMPLE_H2E_IDENTIFIER,
+    },
+  };
+  if (!wifiOn){
+    strncpy((char*)((&wifi_config)->sta.ssid), wifiSsid, 32);
+    strncpy((char*)((&wifi_config)->sta.password), wifiPassword, 64);
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
+
+    ESP_LOGI(TAG_W, "wifi ssid is %s\n", wifi_config.sta.ssid);
+    ESP_LOGI(TAG_W, "wifi password is %s\n", wifi_config.sta.password);
+  }
+  else{
+    ESP_LOGE(TAG_W, "Wifi needs to be off before changing configuration");
+    ESP_LOGE(TAG_W, "Wifi Credentials not set");
+    return;
+  }
+}
+
 extern "C" void wifi_init_sta(void)
 {
-  s_wifi_event_group = xEventGroupCreate();
-
   ESP_ERROR_CHECK(esp_netif_init());
 
   ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -76,27 +100,9 @@ extern "C" void wifi_init_sta(void)
                                                       &event_handler,
                                                       NULL,
                                                       &instance_got_ip));
-  wifi_config_t wifi_config = {
-    .sta = {
-      .ssid = "redmi-black" ,
-      .password = "77777777",
-      /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
-        * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
-        * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
-        * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
-        */
-      .threshold = {.rssi = -90, .authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD, .rssi_5g_adjustment = 20},
-      .sae_pwe_h2e = ESP_WIFI_SAE_MODE,
-      .sae_h2e_identifier = EXAMPLE_H2E_IDENTIFIER,
-    },
-  };
-  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-  //ESP_ERROR_CHECK(esp_wifi_start() );
-
+  setWifiCredentials();
   ESP_LOGI(TAG_W, "wifi_init_sta finished.");
 }
-
 
 /********************************************************************************************************************************************
                                                          DISPLAY FUNCTIONS               

@@ -377,22 +377,3 @@ void Network_Task(void *arg){
     vTaskDelay(1000 / portTICK_PERIOD_MS);
   }  
 }
-
- /*
-            EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-              WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-              pdFALSE,
-              pdFALSE,
-              portMAX_DELAY);
-    
-            if (bits & WIFI_CONNECTED_BIT) {
-              ESP_LOGI(TAG_W, "connected to ap SSID:%s password:%s",
-                        wifiSsid, wifiPassword);
-              
-            } else if (bits & WIFI_FAIL_BIT) {
-                ESP_LOGI(TAG_W, "Failed to connect to SSID:%s, password:%s",
-                          wifiSsid, wifiPassword);
-            } else {
-                ESP_LOGE(TAG_W, "UNEXPECTED EVENT");
-            }
-            */

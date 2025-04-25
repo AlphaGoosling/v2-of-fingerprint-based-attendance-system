@@ -1,4 +1,4 @@
-#if !defined(UTILITIES_H_)
+#ifndef UTILITIES_H_
 #define UTILITIES_H_
 
 #include "Arduino.h"
@@ -39,6 +39,8 @@ extern "C"{
 #define DELETE_STUDENT_ENTRY  4
 #define SYNC_WITH_SERVER      5
 
+#define NONE 0
+
 //Main menu key sizes
 #define MAINKEY_H 40
 #define MAINKEY_W 240
@@ -54,26 +56,12 @@ extern "C"{
 // Using two fonts since numbers are nice when bold
 #define LABEL1_FONT   &FreeSansOblique12pt7b // Key label font 1
 #define MAINMENU_FONT &FreeSerifBold12pt7b
-#define FSS9 &FreeSerifBold12pt7b
-
-// Numeric display box size and location
-#define DISP_X 1
-#define DISP_Y 210
-#define DISP_W 318
-#define DISP_H 50
-#define DISP_TSIZE 3
-#define DISP_TCOLOR TFT_CYAN
 
 // Word length, buffer for storing int and character index
 #define CHAR_LEN 15
 
-/* The event group allows multiple bits for each event, but we only care about two events:
- * - we are connected to the AP with an IP
- * - we failed to connect after the maximum amount of retries */
-#define WIFI_CONNECTED_BIT BIT0
-#define WIFI_FAIL_BIT      BIT1
-
 extern "C" void wifi_init_sta(void);
+extern "C" void setWifiCredentials();
 
 void drawKeyboard();
 void drawMainmenu();
@@ -82,7 +70,6 @@ void drawRegisterAttendanceMenu();
 void drawAddNewStudentMenu();
 void drawDeleteStudentEntry();
 void drawSyncWithServer();
-
 
 void printHex(int num, int precision);
 
