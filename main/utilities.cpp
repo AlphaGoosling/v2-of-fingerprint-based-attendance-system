@@ -19,7 +19,7 @@ char *TAG_D = "Display";
 
 static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data){
   
-  while (!displayTaskIsSuspended) {vTaskDelay(2/ portTICK_PERIOD_MS);} // block until displayTask calls vTaskDelay to UI debounce and gets suspended
+  while (!displayTaskIsSuspended) { vTaskDelay(2 / portTICK_PERIOD_MS); } // block until displayTask calls vTaskDelay, "to UI debounce", and gets suspended
   
   vTaskSuspend(DisplayTaskHandler);
   ESP_LOGI(TAG_W, "Suspended display task");
@@ -49,8 +49,8 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
     if (onScreen == WIFI_MENU){
       tft.textcolor = TFT_RED;
       tft.setFreeFont(&FreeSans9pt7b);
-      tft.fillRect(110, 130, 180, 22, 0x3186);
-      tft.textbgcolor = 0x3186;
+      tft.fillRect(110, 130, 180, 22, TFT_DARKERGREY);
+      tft.textbgcolor = TFT_DARKERGREY;
       tft.drawString("DISCONNECTED", 110, 130);
     }
   } 
@@ -67,8 +67,8 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
     if (onScreen == WIFI_MENU){
       tft.textcolor = TFT_GREEN;
       tft.setFreeFont(&FreeSans9pt7b);
-      tft.fillRect(110, 130, 180, 22, 0x3186);
-      tft.textbgcolor = 0x3186;
+      tft.fillRect(110, 130, 180, 22, TFT_DARKERGREY);
+      tft.textbgcolor = TFT_DARKERGREY;
       tft.drawString("CONNECTED", 115, 130);
     }
   }
@@ -76,7 +76,7 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
   ESP_LOGI(TAG_W, "Resumed display task");
 }
 
-extern "C" void setWifiCredentials(){
+extern "C" int setWifiCredentials(){
   wifi_config_t wifi_config = {
     .sta = {
       .ssid = "admin" ,
@@ -96,11 +96,20 @@ extern "C" void setWifiCredentials(){
   strncpy((char*)((&wifi_config)->sta.password), wifiPassword, 64);
 
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-  if (esp_wifi_set_config(WIFI_IF_STA, &wifi_config) == ESP_ERR_WIFI_PASSWORD || esp_wifi_set_config(WIFI_IF_STA, &wifi_config) == ESP_ERR_INVALID_ARG){
-    ;
+  esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+  ESP_LOGI(TAG_W, "return value of esp_wifi_set_config is %i", err);
+
+  if (err == ESP_ERR_WIFI_PASSWORD || err == ESP_ERR_INVALID_ARG){
+    tft.fillRect(25, 245, 265, 45, TFT_DARKERGREY);
+    tft.textcolor = TFT_GREEN;
+    tft.textbgcolor = TFT_DARKERGREY;
+    tft.setFreeFont(&FreeSerifItalic9pt7b);
+    tft.drawString("#invalid wifi ssid or password", 30, 250);
+    return 1;
   }
   ESP_LOGI(TAG_W, "wifi ssid is %s", wifi_config.sta.ssid);
   ESP_LOGI(TAG_W, "wifi password is %s", wifi_config.sta.password);
+  return 0;
 }
 
 extern "C" void wifi_init_sta(void)
@@ -155,47 +164,48 @@ char studentClassLabels[8][16];
 
 void drawKeyboard(){
   keyboardOnScreen = true;
-   // Draw keyboard background
-  tft.fillRect(0, 300, 320, 180, TFT_DARKGREY);
+  tft.fillRect(0, 300, 320, 180, TFT_DARKGREY); // Draw keyboard background
 
   // Draw the keys
-  tft.setFreeFont(LABEL1_FONT);
-  char keyboardKeyLabel[3] = {' ', '\0', ' '}; // Created to convert char to char * for initButton function
+  tft.setFreeFont(&FreeSansOblique12pt7b);
+  char keyboardKeyLabel[2] = "\n";      //used to convert keyboardKeyLabels char to char * for initButton method
   for (uint8_t row = 0; row < 4; row++) {
     for (uint8_t col = 0; col < 10; col++) {
-      uint8_t b = col + row * 10;
-      
-      keyboardKeyLabel[0] = keyboardKeyLabels[b];
-      if (b == 37){
-        keyboardKeyLabel[0] = '_'; keyboardKeyLabel[1] = '_'; keyboardKeyLabel[2] = '\0';
-        keyboardKeys[b].initButton(&tft, KEY_X * 2 + col * (KEY_W + KEY_SPACING_X),
-                        KEY_Y + row * (KEY_H + KEY_SPACING_Y), // x, y, w, h, outline, fill, text
-                        KEY_W * 2 + KEY_SPACING_X , KEY_H, TFT_WHITE, TFT_BLUE, TFT_WHITE,
-                        keyboardKeyLabel, KEY_TEXTSIZE);
-      }
-      else if (b == 38){
-        continue;
-      }
-      else if (b == 39){
-        keyboardKeyLabel[0] = '<'; keyboardKeyLabel[1] = '\0'; keyboardKeyLabel[2] = ' ';
-        keyboardKeys[b].initButton(&tft, KEY_X + col * (KEY_W + KEY_SPACING_X) - KEY_SPACING_X/2,
-                        KEY_Y + row * (KEY_H + KEY_SPACING_Y), 
-                        KEY_W, KEY_H + KEY_SPACING_X, TFT_WHITE, TFT_RED, TFT_WHITE,
-                        keyboardKeyLabel, KEY_TEXTSIZE);
-      }
-      else if (b == 29){
-        keyboardKeys[b].initButton(&tft, KEY_X + col * (KEY_W + KEY_SPACING_X),
-                        KEY_Y + row * (KEY_H + KEY_SPACING_Y), 
-                        KEY_W, KEY_H, TFT_WHITE, TFT_GREEN, TFT_WHITE,
-                        keyboardKeyLabel, KEY_TEXTSIZE);
-      }
-      else{
-        keyboardKeys[b].initButton(&tft, KEY_X + col * (KEY_W + KEY_SPACING_X),
+
+      uint8_t i = col + row * 10;
+      keyboardKeys[i].setLabelDatum(-1, 2, CC_DATUM);
+      keyboardKeyLabel[0] = keyboardKeyLabels[i]; 
+      if((i < 29)||(i > 29 && i < 37)){          // All the number and letter keys —— draw them with the default settings
+        keyboardKeys[i].initButton(&tft, KEY_X + col * (KEY_W + KEY_SPACING_X),
                         KEY_Y + row * (KEY_H + KEY_SPACING_Y), 
                         KEY_W, KEY_H, TFT_WHITE, TFT_BLUE, TFT_WHITE,
                         keyboardKeyLabel, KEY_TEXTSIZE);
+      }       
+      else if (i == 29){                 // The return key —— make it green
+        keyboardKeys[i].initButton(&tft, KEY_X + col * (KEY_W + KEY_SPACING_X),
+                        KEY_Y + row * (KEY_H + KEY_SPACING_Y), 
+                        KEY_W, KEY_H, TFT_WHITE, TFT_GREEN, TFT_WHITE,
+                        keyboardKeyLabel, KEY_TEXTSIZE);
+      }   
+      else if (i == 37){              // The space bar —— make it twice as wide
+        keyboardKeys[i].initButton(&tft, KEY_X * 2 + col * (KEY_W + KEY_SPACING_X),
+                        KEY_Y + row * (KEY_H + KEY_SPACING_Y), 
+                        KEY_W * 2 + KEY_SPACING_X , KEY_H, TFT_WHITE, TFT_BLUE, TFT_WHITE,
+                        "__", KEY_TEXTSIZE);
       }
-      keyboardKeys[b].drawButton();
+      else if (i == 38){             // Space for the would be 38th key is taken by space bar
+        continue;
+      }
+      else if (i == 39){             // The backspace key —— make it red
+        keyboardKeys[i].initButton(&tft, KEY_X + col * (KEY_W + KEY_SPACING_X),
+                        KEY_Y + row * (KEY_H + KEY_SPACING_Y), 
+                        KEY_W, KEY_H, TFT_WHITE, TFT_RED, TFT_WHITE,
+                        keyboardKeyLabel, KEY_TEXTSIZE);
+      }
+      else{
+        ESP_LOGE(TAG_D, "keyboard key does not exist");
+      }
+      keyboardKeys[i].drawButton();
     }
   }
   tft.setFreeFont(&FreeSans9pt7b);
@@ -229,9 +239,9 @@ void drawWifiMenu(){
   
   tft.drawString("WIFI", 120 , 25);
 
-  tft.fillRoundRect(20, 70, 280, 225, 10, 0x3186);
+  tft.fillRoundRect(20, 70, 280, 225, 10, TFT_DARKERGREY);
   tft.setFreeFont(&FreeSans9pt7b);
-  tft.textbgcolor = 0x3186;
+  tft.textbgcolor = TFT_DARKERGREY;
   String WifiOptions[] = {"Wi-Fi", "Status", "Ssid", "Password"};
   for (u8_t i = 0; i < 4; i++){
     tft.drawString(WifiOptions[i], 32, 90 + 40*i);
@@ -242,7 +252,7 @@ void drawWifiMenu(){
   tft.drawString("#password must be between 8 and 15", 30, 250);
   tft.drawString("characters long", 35, 270);
 
-  WifiOnOffButton.initButton(&tft, 126, 98, 45, 24, 0x3186, 0x3186, 0x3186, " ", KEY_TEXTSIZE);
+  WifiOnOffButton.initButton(&tft, 126, 98, 45, 24, TFT_DARKERGREY, TFT_DARKERGREY, TFT_DARKERGREY, " ", KEY_TEXTSIZE);
   WifiOnOffButton.drawButton();
   tft.fillRoundRect(104, 86, 45, 24, 12, wifiOn? TFT_DARKGREEN : TFT_DARKGREY);
   tft.drawRoundRect(104, 86, 45, 24, 12, TFT_BLACK);
@@ -252,10 +262,10 @@ void drawWifiMenu(){
   tft.setFreeFont(&FreeSans9pt7b);
   tft.drawString(wifiOn? "CONNECTED" : "DISCONNECTED", 115, 130);
 
-  WifiSsidField.initButton(&tft, 204, 176, 170, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
+  WifiSsidField.initButton(&tft, 204, 176, 170, 30, TFT_DARKGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
   WifiSsidField.drawButton();
 
-  PasswordField.initButton(&tft, 204, 216, 170, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
+  PasswordField.initButton(&tft, 204, 216, 170, 30, TFT_DARKGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
   PasswordField.drawButton();
 
   tft.setFreeFont(&FreeSans9pt7b);
@@ -275,10 +285,10 @@ void drawRegisterAttendanceMenu(){
   tft.setFreeFont(&FreeSans9pt7b);
   Serial.print("Number of attendance data files in littlefs storage: "); Serial.println(attendanceFileNum); Serial.println(" ");
 
-  tft.fillRoundRect(40, 70, 240, 80 + 40 * attendanceFileNum, 10, 0x3186);
+  tft.fillRoundRect(40, 70, 240, 80 + 40 * attendanceFileNum, 10, TFT_DARKERGREY);
   for (u8_t i = 0; i < attendanceFileNum; i++){
     Serial.print("studentClassLabels[i]: "); Serial.println(studentClassLabels[i]);
-    studentClasses[i].initButton(&tft, 95, 90 + i * 40, 100, 30, 0x3186, 0x3186, TFT_WHITE, studentClassLabels[i], KEY_TEXTSIZE);
+    studentClasses[i].initButton(&tft, 95, 90 + i * 40, 100, 30, TFT_DARKERGREY, TFT_DARKERGREY, TFT_WHITE, studentClassLabels[i], KEY_TEXTSIZE);
     studentClasses[i].drawButton();
   }
 
@@ -287,7 +297,7 @@ void drawRegisterAttendanceMenu(){
   }
 
   tft.textcolor = TFT_GREEN;
-  tft.textbgcolor = 0x3186;
+  tft.textbgcolor = TFT_DARKERGREY;
   tft.setFreeFont(&FreeSerifItalic9pt7b);
   tft.drawString("#Select a students list to be used", 48, 65 + 40 * attendanceFileNum);
   tft.drawString("to register attendance", 48, 85 + 40 * attendanceFileNum);
@@ -309,9 +319,9 @@ void drawAddNewStudentMenu(){
   tft.setFreeFont(MAINMENU_FONT);
   tft.drawString("ADD NEW STUDENT", 40 , 30);
 
-  tft.fillRoundRect(40, 70, 240, 225, 10, 0x3186);
+  tft.fillRoundRect(40, 70, 240, 225, 10, TFT_DARKERGREY);
   tft.setFreeFont(&FreeSans9pt7b);
-  tft.textbgcolor = 0x3186;
+  tft.textbgcolor = TFT_DARKERGREY;
   String WifiOptions[] = {"First Name", "Last Name", "Std No."};
   for (u8_t i = 0; i < 3; i++){
     tft.drawString(WifiOptions[i], 50, 100 + 50*i);
@@ -322,15 +332,15 @@ void drawAddNewStudentMenu(){
   tft.drawString("and 12 characters long", 55, 270);
 
   TFT_eSPI_Button FirstNameField;
-  FirstNameField.initButton(&tft, 205, 110, 125, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
+  FirstNameField.initButton(&tft, 205, 110, 125, 30, TFT_DARKGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
   FirstNameField.drawButton();
 
   TFT_eSPI_Button LastNameField;
-  LastNameField.initButton(&tft, 205, 160, 125, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
+  LastNameField.initButton(&tft, 205, 160, 125, 30, TFT_DARKGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
   LastNameField.drawButton();
 
   TFT_eSPI_Button StdNumberField;
-  StdNumberField.initButton(&tft, 205, 210, 125, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
+  StdNumberField.initButton(&tft, 205, 210, 125, 30, TFT_DARKGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
   StdNumberField.drawButton();
 
   tft.setFreeFont(&FreeSans9pt7b);
@@ -349,14 +359,14 @@ void drawDeleteStudentEntry(){
   tft.setFreeFont(MAINMENU_FONT);
   tft.drawString("DELETE STUDENT", 55, 30);
 
-  tft.fillRoundRect(40, 70, 240, 225, 10, 0x3186);
+  tft.fillRoundRect(40, 70, 240, 225, 10, TFT_DARKERGREY);
   tft.setFreeFont(&FreeSans9pt7b);
-  tft.textbgcolor = 0x3186;
+  tft.textbgcolor = TFT_DARKERGREY;
   tft.drawString("Student number :", 50, 90);
 
   TFT_eSPI_Button StudentNumberField;
   tft.setTextDatum(TL_DATUM);
-  StudentNumberField.initButton(&tft, 150, 123, 200, 30, TFT_DARKGREY, 0x3186, TFT_WHITE, " ", KEY_TEXTSIZE);
+  StudentNumberField.initButton(&tft, 150, 123, 200, 30, TFT_DARKGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
   StudentNumberField.drawButton();
 
   tft.setFreeFont(&FreeSans9pt7b);
@@ -372,9 +382,9 @@ void drawSyncWithServer(){
   tft.setFreeFont(MAINMENU_FONT);
   tft.drawString("SYNC WITH SERVER", 40, 30);
 
-  tft.fillRoundRect(40, 130, 240, 100, 10, 0x3186);
+  tft.fillRoundRect(40, 130, 240, 100, 10, TFT_DARKERGREY);
   tft.setFreeFont(&FreeSans9pt7b);
-  tft.textbgcolor = 0x3186;
+  tft.textbgcolor = TFT_DARKERGREY;
   tft.drawString("Synchronizing . . .", 50, 168);
 
   tft.setFreeFont(&FreeSans9pt7b);

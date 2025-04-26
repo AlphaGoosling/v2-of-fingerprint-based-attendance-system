@@ -2,10 +2,15 @@
 
 #define FORMAT_LITTLEFS_IF_FAILED true
 
+extern char *TAG_W;
+extern char *TAG_D;
+
 struct golioth_client *client;
 
 bool wifiOn = false;
-bool displayTaskIsSuspended;
+bool displayTaskIsSuspended; // Used to prevent the wifi event handler from trying to use SPI to display stuff on the screen while displayTask may be using it
+extern char wifiSsid[32];
+extern char wifiPassword[64];
 
 u8_t attendanceFileNum = 0;
 
@@ -96,17 +101,20 @@ void Display_Task(void *arg){
   drawMainmenu();
 
   static int xwidth = 0;
+  u8_t box = NONE; //To keep track of the last textbox clicked by the user
+  bool wasPressed = false; // wasPressed will be set to true if the last State of the boolean "pressed" was true
   while(1){
     uint16_t t_x = 0, t_y = 0; // To store the touch coordinates
-    static uint16_t box_x = 0, box_y = 0; // To store the coordinates of the box where text can be entered  
-    u8_t box = NONE; //To keep track of the last textbox clicked by the user
-    bool pressed = tft.getTouch(&t_x, &t_y); // Pressed will be set true is there is a valid touch on the screen
+    static uint16_t box_x = 0, box_y = 0; // To store the coordinates of the text field when one is pressed 
+    bool pressed = tft.getTouch(&t_x, &t_y); // Pressed will be set true if there is a valid touch on the screen
 
-    displayTaskIsSuspended = true; // Used to prevent they wifi event handler from trying to use SPI to display stuff on the screen while displayTask may be using it        
+    displayTaskIsSuspended = true;         
     vTaskDelay(20 / portTICK_PERIOD_MS); // UI debouncing
     displayTaskIsSuspended = false;
 
-    if(!pressed) continue;
+    if(!pressed && !wasPressed) continue; //if display is pressed and was not previously pressed then drop the loop
+    (pressed == false && wasPressed == true) ? wasPressed = false : wasPressed = true;
+
     switch (onScreen){
 /**************************************************************************************/
       printf("User pressed :  %i , %i \n", t_x, t_y);
@@ -121,7 +129,7 @@ void Display_Task(void *arg){
         }
         // Checking if any key has changed state
         for (uint8_t i = 0; i < 5; i++) {
-          if (mainMenuKeys[i].justReleased()) mainMenuKeys[i].drawButton();     // draw normal
+          // if (mainMenuKeys[i].justReleased()) mainMenuKeys[i].drawButton();     // draw normal
 
           if (mainMenuKeys[i].justPressed()) {
             mainMenuKeys[i].drawButton(true);  // draw invert
@@ -170,34 +178,49 @@ void Display_Task(void *arg){
               tft.fillCircle(115 + ((21/7)*i), 97, 8, TFT_WHITE);
               vTaskDelay(20 / portTICK_PERIOD_MS);
             }
-            esp_wifi_start();
+
+            if(setWifiCredentials() == 0){ // check whether the wifi credentials passed are correct
+              esp_wifi_start();
+            } else {
+              ESP_LOGE(TAG_D, "Invalid wifi ssid or password");
+              if (onScreen == WIFI_MENU){
+                for (u8_t i = 1; i <= 7; i++){
+                  tft.fillRoundRect(104, 86, 45, 24, 12, TFT_DARKGREEN + ((0x780F/7)*i));
+                  tft.drawRoundRect(104, 86, 45, 24, 12, TFT_BLACK);
+                  tft.fillCircle(136 - ((21/7)*i), 97, 8, TFT_WHITE);
+                  vTaskDelay(20 / portTICK_PERIOD_MS);
+                }
+              }
+            } 
           } 
           else {
             tft.fillRoundRect(104, 86, 45, 24, 12, TFT_WHITE);
             vTaskDelay(50 / portTICK_PERIOD_MS);
             tft.fillRoundRect(104, 86, 45, 24, 12, TFT_DARKGREEN);
-              tft.drawRoundRect(104, 86, 45, 24, 12, TFT_BLACK);
+            tft.drawRoundRect(104, 86, 45, 24, 12, TFT_BLACK);
             tft.fillCircle(136, 97, 8, TFT_WHITE);
             esp_wifi_disconnect();
           }  
         }
 
         if(WifiSsidField.justPressed()) {
+          box = WIFI_SSID_BOX;
           charIndex = 0;
           charBuffer[charIndex] = 0;
           box_x = (WifiSsidField.topleftcorner() >> 16); 
           box_y = (WifiSsidField.topleftcorner());
-          tft.fillRect(box_x + 4, box_y + 7, 164, 18, 0x3186);
+          tft.fillRect(box_x + 4, box_y + 7, 164, 18, TFT_DARKERGREY);
           printf("Pressed ssid field\n"); printf("%i, %i\n", box_x, box_y);
           if(!keyboardOnScreen)drawKeyboard(); 
         }
 
         if(PasswordField.justPressed()) {
+          box = WIFI_PASSWORD_BOX;
           charIndex = 0;
           charBuffer[charIndex] = 0;
           box_x = (PasswordField.topleftcorner() >> 16); 
           box_y = ((PasswordField.topleftcorner() << 16) >> 16);
-          tft.fillRect(box_x + 4, box_y + 7, 164, 18, 0x3186);
+          tft.fillRect(box_x + 4, box_y + 7, 164, 18, TFT_DARKERGREY);
           printf("Pressed password field\n"); printf("%i, %i\n", box_x, box_y);
           if(!keyboardOnScreen)drawKeyboard();
         }
@@ -249,6 +272,7 @@ void Display_Task(void *arg){
 
     /**************************************************************************************/
     if (keyboardOnScreen == true){
+      tft.setFreeFont(&FreeSansOblique12pt7b);
       for (uint8_t i = 0; i < 40; i++) {
         if (pressed && keyboardKeys[i].contains(t_x, t_y)) {
           keyboardKeys[i].press(true);  // tell the button it is pressed
@@ -259,31 +283,59 @@ void Display_Task(void *arg){
   
       // Checking if any key has changed state
       for (uint8_t i = 0; i < 40; i++) {
-        
-        if (keyboardKeys[i].justReleased()) keyboardKeys[i].drawButton();     // draw normal
+
+        if (keyboardKeys[i].justReleased()) keyboardKeys[i].drawButton();  // draw normal  
   
-        if (keyboardKeys[i].justPressed()) {
-          keyboardKeys[i].drawButton(true);  // draw invert
-  
-          // if a numberpad button, append the relevant # to the charBuffer
-          if (i != 29 && i != 39 ) {
+        if (keyboardKeys[i].justPressed()) { 
+          
+          keyboardKeys[i].drawButton(true);    // draw invert  
+
+          // if it is a number button or space bar, append it to the charBuffer directly
+          if (i < 10 || i == 37 ) {
             if (charIndex < CHAR_LEN) {
               charBuffer[charIndex] = keyboardKeyLabels[i];
               charIndex++;
               charBuffer[charIndex] = 0; // zero terminate
             }
           }
-  
+          // if it is a alphabet letter button, change it to lowercase and then append it to the charBuffer
+          else if ((i > 9 && i < 29)||(i > 29 && i < 37)) {
+            if (charIndex < CHAR_LEN) {
+              charBuffer[charIndex] = (keyboardKeyLabels[i] + 0x20);
+              charIndex++;
+              charBuffer[charIndex] = 0; // zero terminate
+            }
+          }
+
           // Del button, so delete last char
-          if (i == 39) {
+          else if (i == 39) {
             charBuffer[charIndex] = 0;
             if (charIndex > 0) {
               charIndex--;
               charBuffer[charIndex] = 0;//' ';
             }
           }
-  
-          if (i == 29) {
+          
+          // Return key / Enter key, transfer value in charBuffer to relevant Buffer
+          else if (i == 29) {
+            switch (box)
+            {
+            case NONE:
+              /* Do nothing */
+              break;
+
+            case WIFI_SSID_BOX:
+              strncpy(wifiSsid, charBuffer, (CHAR_LEN + 1));
+              break;
+
+            case WIFI_PASSWORD_BOX:
+            strncpy(wifiPassword, charBuffer, (CHAR_LEN + 1));
+              break;
+            
+            default:
+              ESP_LOGE(TAG_D, "Unrecorgnised textbox clicked");
+              break;
+            }
             tft.fillRect(0, 0, 65, 32, TFT_BLACK);
             tft.fillRect(0, 300, 320, 180, TFT_BLACK);
             keyboardOnScreen = false;
@@ -291,34 +343,38 @@ void Display_Task(void *arg){
             BackButton.initButton(&tft, 275, 455, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
             BackButton.drawButton();
           }
+          else{
+            ESP_LOGE(TAG_D, "keyboard key does not exist");
+          }
   
           // Update the text display field being written to
           tft.setTextColor(TFT_WHITE);    
           tft.setFreeFont(&FreeSans9pt7b);
-          tft.textbgcolor = 0x3186;
+          tft.textbgcolor = TFT_DARKERGREY;
 
           // Draw the string, the value returned is the width in pixels
-          tft.fillRect(box_x + 4, box_y + 7, xwidth, 18, 0x3186);
+          tft.fillRect(box_x + 4, box_y + 7, xwidth, 18, TFT_DARKERGREY);
           xwidth = tft.drawString(charBuffer, box_x + 4, box_y + 7);
         }
       }
     }
 
     /**************************************************************************************/
-    if (pressed && BackButton.contains(t_x, t_y)) {
-      BackButton.press(true);  // tell the button it is pressed
-    } 
-    else {
-      BackButton.press(false);  // tell the button it is NOT pressed
-    }
+    if(onScreen != MAINMENU){
+      if (pressed && BackButton.contains(t_x, t_y)) {
+        BackButton.press(true);  // tell the button it is pressed
+      } else {
+        BackButton.press(false);  // tell the button it is NOT pressed
+      }
 
-    if (BackButton.justReleased()) BackButton.drawButton();     // draw normal
+      if (BackButton.justReleased()) BackButton.drawButton();     // draw normal
 
-    else if (BackButton.justPressed()) {
-      keyboardOnScreen = false;
-      BackButton.drawButton(true);
-      drawMainmenu();
-      vTaskDelay(100 / portTICK_PERIOD_MS);
+      else if (BackButton.justPressed()) {
+        keyboardOnScreen = false;
+        BackButton.drawButton(true);
+        drawMainmenu();
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+      }
     }
   }
 }

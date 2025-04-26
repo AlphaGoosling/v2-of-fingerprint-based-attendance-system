@@ -39,7 +39,9 @@ extern "C"{
 #define DELETE_STUDENT_ENTRY  4
 #define SYNC_WITH_SERVER      5
 
-#define NONE 0
+#define NONE                  0
+#define WIFI_SSID_BOX         1
+#define WIFI_PASSWORD_BOX     2
 
 //Main menu key sizes
 #define MAINKEY_H 40
@@ -53,15 +55,13 @@ extern "C"{
 #define KEY_SPACING_Y 10
 #define KEY_TEXTSIZE 1   // Font size multiplier
 
-// Using two fonts since numbers are nice when bold
-#define LABEL1_FONT   &FreeSansOblique12pt7b // Key label font 1
 #define MAINMENU_FONT &FreeSerifBold12pt7b
 
 // Word length, buffer for storing int and character index
 #define CHAR_LEN 15
 
 extern "C" void wifi_init_sta(void);
-extern "C" void setWifiCredentials();
+extern "C" int setWifiCredentials();
 
 void drawKeyboard();
 void drawMainmenu();
