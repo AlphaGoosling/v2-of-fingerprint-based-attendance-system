@@ -161,7 +161,7 @@ char keyboardKeyLabels[40] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 
 
 char *mainMenuKeyLabels[5] = {"WiFi", "Register Attendance", "Add new Entry", "Delete Entry", "Sync With Server"};
 
-char studentClassLabels[8][16];
+char studentClassLabels[8][16] = {0,0,0,0,0};
 
 
 void drawKeyboard(){
@@ -408,150 +408,119 @@ void drawSyncWithServer(){
 *********************************************************************************************************************************************/  
 extern Adafruit_Fingerprint finger;
 extern HardwareSerial fingerprintSerial;
+uint8_t f_buf[512];
 
-uint8_t getFingerprintEnroll(int id) {
-  
-  int p = -1;
-  Serial.print("Waiting for valid finger to enroll as #"); Serial.println(id);
-  while (p != FINGERPRINT_OK) {
-    p = finger.getImage();
-    vTaskDelay(100/ portTICK_PERIOD_MS);
-    switch (p) {
-    case FINGERPRINT_OK:
-      Serial.println("Image taken");
-      break;
-    case FINGERPRINT_NOFINGER:
-      Serial.println(".");
-      break;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      Serial.println("Communication error");
-      break;
-    case FINGERPRINT_IMAGEFAIL:
-      Serial.println("Imaging error");
-      break;
-    default:
-      Serial.println("Unknown error");
-      break;
-    }
+void enroll_storeTemplateToBuf(int id){
+
+  Serial.println("Waiting for valid finger....");
+  while (finger.getImage() != FINGERPRINT_OK) { // press down a finger take 1st image 
+    vTaskDelay(200 / portTICK_PERIOD_MS);
   }
+  Serial.println("Image taken");
 
-  // OK success!
-
-  p = finger.image2Tz(1);
-  switch (p) {
-    case FINGERPRINT_OK:
-      Serial.println("Image converted");
-      break;
-    case FINGERPRINT_IMAGEMESS:
-      Serial.println("Image too messy");
-      return p;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      Serial.println("Communication error");
-      return p;
-    case FINGERPRINT_FEATUREFAIL:
-      Serial.println("Could not find fingerprint features");
-      return p;
-    case FINGERPRINT_INVALIDIMAGE:
-      Serial.println("Could not find fingerprint features");
-      return p;
-    default:
-      Serial.println("Unknown error");
-      return p;
+  if (finger.image2Tz(1) == FINGERPRINT_OK) { //creating the charecter file for 1st image 
+    Serial.println("Image converted");
+  } else {
+    Serial.println("Conversion error");
+    return;
   }
 
   Serial.println("Remove finger");
-  vTaskDelay(200 / portTICK_PERIOD_MS);
-  p = 0;
+  vTaskDelay(2000 / portTICK_PERIOD_MS);
+  uint8_t p = 0;
   while (p != FINGERPRINT_NOFINGER) {
     p = finger.getImage();
-    vTaskDelay(100/ portTICK_PERIOD_MS);
+    vTaskDelay(200 / portTICK_PERIOD_MS);
   }
-  Serial.print("ID "); Serial.println(id);
-  p = -1;
-  Serial.println("Place same finger again");
-  while (p != FINGERPRINT_OK) {
-    p = finger.getImage();
-    vTaskDelay(100/ portTICK_PERIOD_MS);
-    switch (p) {
-    case FINGERPRINT_OK:
-      Serial.println("Image taken");
-      break;
-    case FINGERPRINT_NOFINGER:
-      Serial.println(".");
-      break;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      Serial.println("Communication error");
-      break;
-    case FINGERPRINT_IMAGEFAIL:
-      Serial.println("Imaging error");
-      break;
-    default:
-      Serial.println("Unknown error");
-      break;
+
+  Serial.println("Place same finger again, waiting....");
+  while (finger.getImage() != FINGERPRINT_OK) { // press the same finger again to take 2nd image
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+  }
+  Serial.println("Image taken");
+
+
+  if (finger.image2Tz(2) == FINGERPRINT_OK) { //creating the charecter file for 2nd image 
+    Serial.println("Image converted");
+  } else {
+    Serial.println("Conversion error");
+    return;
+  }
+
+
+  Serial.println("Creating model...");
+
+  if (finger.createModel() == FINGERPRINT_OK) {  //creating the template from the 2 charecter files and saving it to char buffer 1
+    Serial.println("Prints matched!");
+    Serial.println("Template created");
+  } else {
+    Serial.println("Template not build");
+    return;
+  }
+
+  Serial.println("Attempting to get template..."); 
+  if (finger.getModel() == FINGERPRINT_OK) {  //requesting sensor to transfer the template data to upper computer (this microcontroller)
+    Serial.println("Transferring Template...."); 
+  } else {
+    Serial.println("Failed to transfer template");
+    return;
+  }
+  
+  if (finger.get_template_buffer(512, f_buf) == FINGERPRINT_OK) { //read the template data from sensor and save it to buffer f_buf
+    Serial.println("Template data (comma sperated HEX):");
+    for (int k = 0; k < (512/finger.packet_len); k++) { //printing out the template data in seperate rows, where row-length = packet_length
+      for (int l = 0; l < finger.packet_len; l++) {
+        Serial.print("0x");
+        Serial.print(f_buf[(k * finger.packet_len) + l], HEX);
+        Serial.print(",");
+      }
+      Serial.println("");
     }
   }
-
-  // OK success!
-
-  p = finger.image2Tz(2);
-  switch (p) {
-    case FINGERPRINT_OK:
-      Serial.println("Image converted");
-      break;
-    case FINGERPRINT_IMAGEMESS:
-      Serial.println("Image too messy");
-      return p;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      Serial.println("Communication error");
-      return p;
-    case FINGERPRINT_FEATUREFAIL:
-      Serial.println("Could not find fingerprint features");
-      return p;
-    case FINGERPRINT_INVALIDIMAGE:
-      Serial.println("Could not find fingerprint features");
-      return p;
-    default:
-      Serial.println("Unknown error");
-      return p;
-  }
-
-  // OK converted!
-  Serial.print("Creating model for #");  Serial.println(id);
-
-  p = finger.createModel();
-  if (p == FINGERPRINT_OK) {
-    Serial.println("Prints matched!");
-  } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
-    Serial.println("Communication error");
-    return p;
-  } else if (p == FINGERPRINT_ENROLLMISMATCH) {
-    Serial.println("Fingerprints did not match");
-    return p;
-  } else {
-    Serial.println("Unknown error");
-    return p;
-  }
-
   Serial.print("ID "); Serial.println(id);
   p = finger.storeModel(id);
   if (p == FINGERPRINT_OK) {
     Serial.println("Stored!");
   } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
     Serial.println("Communication error");
-    return p;
+    return;
   } else if (p == FINGERPRINT_BADLOCATION) {
     Serial.println("Could not store in that location");
-    return p;
+    return;
   } else if (p == FINGERPRINT_FLASHERR) {
     Serial.println("Error writing to flash");
-    return p;
+    return;
   } else {
     Serial.println("Unknown error");
-    return p;
+    return;
+  }
+}
+
+void writeTemplateDataToSensor(u8_t id, uint8_t fingerTemplate[512]) {
+  int template_buf_size=512; //usually hobby grade sensors have 512 byte template data, watch datasheet to know the info
+  
+  Serial.println("Ready to write template to sensor...");
+
+  if (id == 0) {// ID #0 not allowed, try again!
+    return;
+  }
+  Serial.print("Writing template against ID #"); Serial.println(id);
+
+  if (finger.write_template_to_sensor(template_buf_size,fingerTemplate)) { //telling the sensor to download the template data to it's char buffer from upper computer (this microcontroller's "fingerTemplate" buffer)
+    Serial.println("now writing to sensor...");
+  } else {
+    Serial.println("writing to sensor failed");
+    return;
   }
 
-  return true;
-}
+  Serial.print("ID "); Serial.println(id);
+  if (finger.storeModel(id) == FINGERPRINT_OK) { //saving the template against the ID you entered or manually set
+    Serial.print("Successfully stored against ID#");Serial.println(id);
+  } else {
+    Serial.println("Storing error");
+    return ;
+  }
+} 
 
 uint8_t getFingerprintID() {
   uint8_t p = finger.getImage();
@@ -619,130 +588,12 @@ uint8_t getFingerprintID() {
   return finger.fingerID;
 }
 
-// returns -1 if failed, otherwise returns ID #
-int getFingerprintIDez() {
-  uint8_t p = finger.getImage();
-  if (p != FINGERPRINT_OK)  return -1;
-
-  p = finger.image2Tz();
-  if (p != FINGERPRINT_OK)  return -1;
-
-  p = finger.fingerFastSearch();
-  if (p != FINGERPRINT_OK)  return -1;
-
-  // found a match!
-  Serial.print("Found ID #"); Serial.println(finger.fingerID);
-  Serial.print(" with confidence of "); Serial.println(finger.confidence);
-  return finger.fingerID;
-}
-
-void printHex(int num, int precision) {
-  char tmp[16];
-  char format[128];
-
-  sprintf(format, "%%.%dX", precision);
-
-  sprintf(tmp, format, num);
-  Serial.println(tmp);
-}
-
-uint8_t downloadFingerprintTemplate(uint16_t id)
-{
-  Serial.println("------------------------------------");
-  Serial.print("Attempting to load #"); Serial.println(id);
-  uint8_t p = finger.loadModel(id);
-  switch (p) {
-    case FINGERPRINT_OK:
-      Serial.print("Template "); Serial.print(id); Serial.println(" loaded");
-      break;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      Serial.println("Communication error");
-      return p;
-    default:
-      Serial.print("Unknown error "); Serial.println(p);
-      return p;
-  }
-
-  // OK success!
-
-  Serial.print("Attempting to get #"); Serial.println(id);
-  p = finger.getModel();
-  switch (p) {
-    case FINGERPRINT_OK:
-      Serial.print("Template "); Serial.print(id); Serial.println(" transferring:");
-      break;
-    default:
-      Serial.print("Unknown error "); Serial.println(p);
-      return p;
-  }
-
-  // one data packet is 267 bytes. in one data packet, 11 bytes are 'usesless' :D
-  uint8_t bytesReceived[534]; // 2 data packets
-  memset(bytesReceived, 0xff, 534);
-
-  uint32_t starttime = millis();
-  int i = 0;
-  while (i < 534 && (millis() - starttime) < 20000) {
-    if (fingerprintSerial.available()) {
-      bytesReceived[i++] = fingerprintSerial.read();
-    }
-  }
-  Serial.print(i); Serial.println(" bytes read.");
-  Serial.println("Decoding packet...");
-
-  uint8_t fingerTemplate[512]; // the real template
-  memset(fingerTemplate, 0xff, 512);
-
-  // filtering only the data packets
-  int uindx = 9, index = 0;
-  memcpy(fingerTemplate + index, bytesReceived + uindx, 256);   // first 256 bytes
-  uindx += 256;       // skip data
-  uindx += 2;         // skip checksum
-  uindx += 9;         // skip next header
-  index += 256;       // advance pointer
-  memcpy(fingerTemplate + index, bytesReceived + uindx, 256);   // second 256 bytes
-
-  for (int i = 0; i < 512; ++i) {
-    //Serial.println("0x");
-    printHex(fingerTemplate[i], 2);
-    //Serial.println(", ");
-  }
-  Serial.println("\ndone.");
-
-  return p;
-
-  /*
-  uint8_t templateBuffer[256];
-  memset(templateBuffer, 0xff, 256);  //zero out template buffer
-  int index=0;
-  uint32_t starttime = millis();
-  while ((index < 256) && ((millis() - starttime) < 1000))
-  {
-  if (mySerial.available())
-  {
-    templateBuffer[index] = mySerial.read();
-    index++;
-  }
-  }
-
-  Serial.println(index); Serial.println(" bytes read");
-
-  //dump entire templateBuffer.  This prints out 16 lines of 16 bytes
-  for (int count= 0; count < 16; count++)
-  {
-  for (int i = 0; i < 16; i++)
-  {
-    Serial.println("0x");
-    Serial.println(templateBuffer[count*16+i], HEX);
-    Serial.println(", ");
-  }
-  Serial.println();
-  }*/
-}
 
 /********************************************************************************************************************************************
                                                         FILE MANAGEMENT FUNCTIONS               
-*********************************************************************************************************************************************/  
+*********************************************************************************************************************************************/ 
+extern JsonDocument student;
+extern JsonDocument attendance_doc; 
 
 u8_t listDir(fs::FS &fs, const char *dirname, uint8_t levels) {
   u8_t fileNum = 0;
@@ -776,7 +627,7 @@ u8_t listDir(fs::FS &fs, const char *dirname, uint8_t levels) {
     else {
       Serial.print("  FILE: ");
       Serial.print(file.name());
-      strncpy( studentClassLabels[fileNum], file.name(), 11); //put names of files in the directory in the list
+      strncpy( studentClassLabels[fileNum], file.name(), 15); //put names of files in the directory in the list
       Serial.print("  SIZE: ");
       Serial.print(file.size());
       time_t t = file.getLastWrite();

@@ -69,6 +69,8 @@ extern "C"{
 // Word length, buffer for storing int and character index
 #define CHAR_LEN 15
 
+#define NUM_OF_STUDENTS 15 //number of students that can be stored in memory at once
+
 extern "C" void wifi_init_sta(void);
 extern "C" int setWifiCredentials();
 
@@ -80,7 +82,9 @@ void drawAddNewStudentMenu();
 void drawDeleteStudentEntry();
 void drawSyncWithServer();
 
-void printHex(int num, int precision);
+void enroll_storeTemplateToBuf(int id);
+void writeTemplateDataToSensor(u8_t id, uint8_t fingerTemplate[512]);
+uint8_t getFingerprintID();
 
 u8_t listDir(fs::FS &fs, const char *dirname, uint8_t levels);
 void createDir(fs::FS &fs, const char *path);

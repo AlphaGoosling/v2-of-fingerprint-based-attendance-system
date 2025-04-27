@@ -12,8 +12,14 @@ bool displayTaskIsSuspended; // Used to prevent the wifi event handler from tryi
 extern char wifiSsid[32];
 extern char wifiPassword[64];
 
+extern char studentClassLabels[8][16];
 u8_t attendanceFileNum = 0;
 u8_t loadedFile = NONE;
+JsonDocument attendance_doc;
+const char* first_name[NUM_OF_STUDENTS];
+const char* surname[NUM_OF_STUDENTS];
+u32_t student_number[NUM_OF_STUDENTS];
+bool attended[NUM_OF_STUDENTS];
 
 long timezone = 1;
 byte daysavetime = 1;
@@ -50,6 +56,7 @@ Adafruit_Fingerprint finger = Adafruit_Fingerprint(&fingerprintSerial);
 /********************************************************************************************************************************************
                                                       Main Function              
 *********************************************************************************************************************************************/  
+
 extern "C" void app_main()
 {
   Serial.begin(115200);
@@ -228,7 +235,7 @@ void Display_Task(void *arg){
 
 /**************************************************************************************/
       case REGISTER_ATTENDANCE:
-        static u8_t activeFile;
+        static u8_t activeFile = (loadedFile == NONE ? NONE : activeFile);
         for (uint8_t i = 0; i < attendanceFileNum; i++) {
           if (pressed && studentClasses[i].contains(t_x, t_y)) {
             studentClasses[i].press(true);
@@ -251,10 +258,12 @@ void Display_Task(void *arg){
         for (uint8_t i = 0; i < attendanceFileNum; i++) {
 
           if (studentClasses[i].justPressed()) {
+            tft.setFreeFont(&FreeSans9pt7b);
             studentClasses[i].drawButton(true);  // draw inverted
           }
 
           if (studentClasses[i].justReleased()) {
+            tft.setFreeFont(&FreeSans9pt7b);
             studentClasses[i].drawButton(false);  // draw normally
             activeFile = i;
           }
@@ -267,15 +276,65 @@ void Display_Task(void *arg){
         } 
 
         if (LoadClassButton.justPressed()) {
+          tft.setFreeFont(&FreeSansBold9pt7b);
+          LoadClassButton.setLabelDatum(0, 2, CC_DATUM);
           LoadClassButton.drawButton(true); 
-          //Load student data from file clicked into json object and then into fingerprint sensor
+          if (activeFile == NONE)
+          {
+            for(u8_t i = 0; i < 5; i++){
+              tft.fillRect(46, 122 + 32 * attendanceFileNum, 230, 40, TFT_DARKERGREY);
+              vTaskDelay(40 / portTICK_PERIOD_MS);
+              tft.textcolor = TFT_GREEN;
+              tft.textbgcolor = TFT_DARKERGREY;
+              tft.setFreeFont(&FreeSerifItalic9pt7b);
+              tft.drawString("#Please select a student list to be", 48, 124 + 32 * attendanceFileNum);
+              tft.drawString("used before pressing the button", 48, 144 + 32 * attendanceFileNum); 
+              vTaskDelay(40 / portTICK_PERIOD_MS);
+            }
+          }
+          
+          String path = "/";
+          path.concat(studentClassLabels[activeFile]);
+          fs::File file = LittleFS.open(path);
+          if (!file) {
+            Serial.println("Failed to open file for reading");
+            return;
+          }
+          u8_t i = 1;
+          while (true) {
+            JsonDocument student;
+          
+            DeserializationError err = deserializeJson(student, file);
+            if (err) break;
+          
+            // the zeroth index in all the following buffers is not used for the sake of simplicity——i is the fingerprint id in all cases
+            first_name[i] = student["first_name"];
+            surname[i] = student["surname"];
+            student_number[i] = student["student_number"];
+            attended[i] = student["attended"];
+            u8_t fingerprint_template[512];
+            strncpy((char *)fingerprint_template, student["fingerprint_template"], 512);
+            writeTemplateDataToSensor(i, fingerprint_template);
+
+            Serial.print(first_name[i]);
+            Serial.print(" ");
+            Serial.println(surname[i]);
+            Serial.println(" ");
+            i++;
+          }
+          
+          file.close();
           //Signal to the user that you have
         }
         if (LoadClassButton.justReleased()) {
+          tft.setFreeFont(&FreeSansBold9pt7b);
+          LoadClassButton.setLabelDatum(0, 2, CC_DATUM);
           LoadClassButton.drawButton(false);  
         }
         
         if (TakeAttendanceButton.justPressed()) {
+          tft.setFreeFont(&FreeSansBold9pt7b);
+          TakeAttendanceButton.setLabelDatum(0, 2, CC_DATUM);
           TakeAttendanceButton.drawButton(true); 
           //display info on screen that taking attendance is in progress add exit button
           //prompt the user to touch the fingerprint sensor 
