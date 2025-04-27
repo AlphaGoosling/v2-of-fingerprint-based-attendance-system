@@ -141,6 +141,7 @@ extern "C" void wifi_init_sta(void)
 /********************************************************************************************************************************************
                                                          DISPLAY FUNCTIONS               
 *********************************************************************************************************************************************/  
+
 extern u8_t attendanceFileNum;
 bool keyboardOnScreen = false;
 extern bool wifiOn;
@@ -153,6 +154,7 @@ TFT_eSPI_Button PasswordField;
 TFT_eSPI_Button WifiSsidField;
 TFT_eSPI_Button WifiOnOffButton;
 TFT_eSPI_Button TakeAttendanceButton;
+TFT_eSPI_Button LoadClassButton;
 
 char keyboardKeyLabels[40] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 
                                     'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', '>', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', ' ', ' ', '<' };
@@ -280,30 +282,38 @@ void drawRegisterAttendanceMenu(){
   tft.textbgcolor = TFT_BLACK;
   tft.setFreeFont(MAINMENU_FONT);
   //tft.setTextDatum(TL_DATUM); 
-  tft.drawString("LOAD CLASS FILE", 12, 30);
+  tft.drawString("LOAD CLASS FILE", 50, 30);
 
+  Serial.print("Number of attendance data files in littlefs storage: "); Serial.println(attendanceFileNum); 
   tft.setFreeFont(&FreeSans9pt7b);
-  Serial.print("Number of attendance data files in littlefs storage: "); Serial.println(attendanceFileNum); Serial.println(" ");
 
-  tft.fillRoundRect(40, 70, 240, 80 + 40 * attendanceFileNum, 10, TFT_DARKERGREY);
+  tft.fillRoundRect(40, 70, 240, 95 + 32 * attendanceFileNum, 10, TFT_DARKERGREY);
   for (u8_t i = 0; i < attendanceFileNum; i++){
-    Serial.print("studentClassLabels[i]: "); Serial.println(studentClassLabels[i]);
-    studentClasses[i].initButton(&tft, 95, 90 + i * 40, 100, 30, TFT_DARKERGREY, TFT_DARKERGREY, TFT_WHITE, studentClassLabels[i], KEY_TEXTSIZE);
+    Serial.print("Class file "); Serial.print(i + 1); Serial.print(": "); Serial.println(studentClassLabels[i]);
+    studentClasses[i].setLabelDatum(-54, -5, TL_DATUM);
+    studentClasses[i].initButton(&tft, 116, 90 + i * 32, 150, 30, TFT_DARKERGREY, TFT_DARKERGREY, TFT_WHITE, studentClassLabels[i], KEY_TEXTSIZE);
     studentClasses[i].drawButton();
   }
 
   for (u8_t i = 0; i < attendanceFileNum; i++){
-    tft.drawLine(45, 97 + i * 40, 147, 97 + i * 40, TFT_WHITE);
+    tft. drawRect(45, 85 + i * 32, 9, 9, TFT_WHITE);
+    tft.drawLine(45, 105 + i * 32, 200, 105 + i * 32, TFT_WHITE);
   }
+
+  tft.setFreeFont(&FreeSansBold9pt7b);
+  LoadClassButton.setLabelDatum(0, 2, CC_DATUM);
+  LoadClassButton.initButton(&tft, 160, 100 + 32 * attendanceFileNum, 160, 30, TFT_WHITE, TFT_DARKGREEN, TFT_WHITE, "Load Class File", KEY_TEXTSIZE);
+  LoadClassButton.drawButton();
 
   tft.textcolor = TFT_GREEN;
   tft.textbgcolor = TFT_DARKERGREY;
   tft.setFreeFont(&FreeSerifItalic9pt7b);
-  tft.drawString("#Select a students list to be used", 48, 65 + 40 * attendanceFileNum);
-  tft.drawString("to register attendance", 48, 85 + 40 * attendanceFileNum);
+  tft.drawString("#Load a students list to be used", 48, 124 + 32 * attendanceFileNum);
+  tft.drawString("to register attendance", 48, 144 + 32 * attendanceFileNum);
 
-  tft.setFreeFont(&FreeSans9pt7b);
-  TakeAttendanceButton.initButton(&tft, 275, 270 + 40 * attendanceFileNum, 120, 30, TFT_DARKGREY, TFT_GREEN, TFT_WHITE, "Take Attendance", KEY_TEXTSIZE);
+  tft.setFreeFont(&FreeSansBold9pt7b);
+  TakeAttendanceButton.setLabelDatum(0, 2, CC_DATUM);
+  TakeAttendanceButton.initButton(&tft, 160, 200 + 32 * attendanceFileNum, 210, 40, TFT_WHITE, TFT_DARKGREEN, TFT_WHITE, "Take Attendance", KEY_TEXTSIZE);
   TakeAttendanceButton.drawButton();
 
   tft.setFreeFont(&FreeSans9pt7b);

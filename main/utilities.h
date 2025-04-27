@@ -39,9 +39,18 @@ extern "C"{
 #define DELETE_STUDENT_ENTRY  4
 #define SYNC_WITH_SERVER      5
 
-#define NONE                  0
-#define WIFI_SSID_BOX         1
-#define WIFI_PASSWORD_BOX     2
+#define NONE                  255
+#define WIFI_SSID_BOX         254
+#define WIFI_PASSWORD_BOX     253
+#define CLASS_FILE_1          0
+#define CLASS_FILE_2          1
+#define CLASS_FILE_3          2
+#define CLASS_FILE_4          3
+#define CLASS_FILE_5          4
+#define CLASS_FILE_6          5
+#define CLASS_FILE_7          6
+#define CLASS_FILE_8          7
+
 
 //Main menu key sizes
 #define MAINKEY_H 40

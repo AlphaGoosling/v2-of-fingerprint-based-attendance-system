@@ -13,6 +13,7 @@ extern char wifiSsid[32];
 extern char wifiPassword[64];
 
 u8_t attendanceFileNum = 0;
+u8_t loadedFile = NONE;
 
 long timezone = 1;
 byte daysavetime = 1;
@@ -32,6 +33,7 @@ extern TFT_eSPI_Button WifiOnOffButton;
 extern TFT_eSPI_Button WifiSsidField;
 extern TFT_eSPI_Button PasswordField;
 extern TFT_eSPI_Button TakeAttendanceButton;
+extern TFT_eSPI_Button LoadClassButton;
 extern char keyboardKeyLabels[40];
 
 TaskHandle_t DisplayTaskHandler = NULL;
@@ -101,7 +103,7 @@ void Display_Task(void *arg){
   drawMainmenu();
 
   static int xwidth = 0;
-  u8_t box = NONE; //To keep track of the last textbox clicked by the user
+  u8_t activeElement = NONE; //To keep track of the last selectable element clicked by the user
   bool wasPressed = false; // wasPressed will be set to true if the last State of the boolean "pressed" was true
   while(1){
     uint16_t t_x = 0, t_y = 0; // To store the touch coordinates
@@ -117,7 +119,6 @@ void Display_Task(void *arg){
 
     switch (onScreen){
 /**************************************************************************************/
-      printf("User pressed :  %i , %i \n", t_x, t_y);
       case MAINMENU:
         //Checking if any key coordinate boxes contain the touch coordinates
         for (uint8_t i = 0; i < 5; i++) {
@@ -129,10 +130,9 @@ void Display_Task(void *arg){
         }
         // Checking if any key has changed state
         for (uint8_t i = 0; i < 5; i++) {
-          // if (mainMenuKeys[i].justReleased()) mainMenuKeys[i].drawButton();     // draw normal
 
           if (mainMenuKeys[i].justPressed()) {
-            mainMenuKeys[i].drawButton(true);  // draw invert
+            mainMenuKeys[i].drawButton(true);  
 
             // Del button, so delete last char
             switch(i) {
@@ -152,7 +152,7 @@ void Display_Task(void *arg){
                 drawSyncWithServer();
                 break;
               default:
-                Serial.println("Error in Main Menu buttons");
+                Serial.println("Error in Main Menu buttons");   
             }
           }
         }
@@ -204,7 +204,7 @@ void Display_Task(void *arg){
         }
 
         if(WifiSsidField.justPressed()) {
-          box = WIFI_SSID_BOX;
+          activeElement = WIFI_SSID_BOX;
           charIndex = 0;
           charBuffer[charIndex] = 0;
           box_x = (WifiSsidField.topleftcorner() >> 16); 
@@ -215,7 +215,7 @@ void Display_Task(void *arg){
         }
 
         if(PasswordField.justPressed()) {
-          box = WIFI_PASSWORD_BOX;
+          activeElement = WIFI_PASSWORD_BOX;
           charIndex = 0;
           charBuffer[charIndex] = 0;
           box_x = (PasswordField.topleftcorner() >> 16); 
@@ -228,6 +228,7 @@ void Display_Task(void *arg){
 
 /**************************************************************************************/
       case REGISTER_ATTENDANCE:
+        static u8_t activeFile;
         for (uint8_t i = 0; i < attendanceFileNum; i++) {
           if (pressed && studentClasses[i].contains(t_x, t_y)) {
             studentClasses[i].press(true);
@@ -235,22 +236,51 @@ void Display_Task(void *arg){
             studentClasses[i].press(false);
           }
         }
+        if (pressed && LoadClassButton.contains(t_x, t_y)) {
+            LoadClassButton.press(true);
+        } else {
+          LoadClassButton.press(false);
+        }
+        if (pressed && TakeAttendanceButton.contains(t_x, t_y)) {
+          TakeAttendanceButton.press(true);
+        } else {
+          TakeAttendanceButton.press(false);
+        }
+
         // Checking if any key has changed state
         for (uint8_t i = 0; i < attendanceFileNum; i++) {
 
           if (studentClasses[i].justPressed()) {
-            studentClasses[i].drawButton(true);  // draw invert
+            studentClasses[i].drawButton(true);  // draw inverted
+          }
 
-            //Load student data from file clicked into json object and then into fingerprint sensor
-            //display info on screen that taking attendance is in progress add exit button
-            //prompt the user to touch the fingerprint sensor 
-            //when they do display their name and student number with the words attendance confirmed
-            //do again until 
+          if (studentClasses[i].justReleased()) {
+            studentClasses[i].drawButton(false);  // draw normally
+            activeFile = i;
           }
-          else{
-            studentClasses[i].drawButton(false);  // draw normal
-          }
-          tft.drawLine(45, 97 + i * 40, 147, 97 + i * 40, TFT_WHITE);
+          tft. drawRect(45, 85 + i * 32, 9, 9, TFT_WHITE);
+          tft.drawLine(45, 105 + i * 32, 160, 105 + i * 32, TFT_WHITE);
+        } 
+
+        for (uint8_t i = 0; i < attendanceFileNum; i++) {
+          (i == activeFile) ? (tft.fillRect(47, 87 + i * 32, 5, 5, TFT_WHITE)) : (tft.fillRect(47, 87 + i * 32, 5, 5, TFT_DARKERGREY)); //radiobutton
+        } 
+
+        if (LoadClassButton.justPressed()) {
+          LoadClassButton.drawButton(true); 
+          //Load student data from file clicked into json object and then into fingerprint sensor
+          //Signal to the user that you have
+        }
+        if (LoadClassButton.justReleased()) {
+          LoadClassButton.drawButton(false);  
+        }
+        
+        if (TakeAttendanceButton.justPressed()) {
+          TakeAttendanceButton.drawButton(true); 
+          //display info on screen that taking attendance is in progress add exit button
+          //prompt the user to touch the fingerprint sensor 
+          //when they do display their name and student number with the words attendance confirmed
+          //do again until
         }
         break;
       /**************************************************************************************/
@@ -275,20 +305,20 @@ void Display_Task(void *arg){
       tft.setFreeFont(&FreeSansOblique12pt7b);
       for (uint8_t i = 0; i < 40; i++) {
         if (pressed && keyboardKeys[i].contains(t_x, t_y)) {
-          keyboardKeys[i].press(true);  // tell the button it is pressed
+          keyboardKeys[i].press(true);  
         } else {
-          keyboardKeys[i].press(false);  // tell the button it is NOT pressed
+          keyboardKeys[i].press(false);  
         }
       }
   
       // Checking if any key has changed state
       for (uint8_t i = 0; i < 40; i++) {
 
-        if (keyboardKeys[i].justReleased()) keyboardKeys[i].drawButton();  // draw normal  
+        if (keyboardKeys[i].justReleased()) keyboardKeys[i].drawButton();    
   
         if (keyboardKeys[i].justPressed()) { 
           
-          keyboardKeys[i].drawButton(true);    // draw invert  
+          keyboardKeys[i].drawButton(true);     
 
           // if it is a number button or space bar, append it to the charBuffer directly
           if (i < 10 || i == 37 ) {
@@ -318,7 +348,7 @@ void Display_Task(void *arg){
           
           // Return key / Enter key, transfer value in charBuffer to relevant Buffer
           else if (i == 29) {
-            switch (box)
+            switch (activeElement)
             {
             case NONE:
               /* Do nothing */
@@ -333,7 +363,7 @@ void Display_Task(void *arg){
               break;
             
             default:
-              ESP_LOGE(TAG_D, "Unrecorgnised textbox clicked");
+              ESP_LOGE(TAG_D, "Unrecorgnised textbox clicked in wifi menu");
               break;
             }
             tft.fillRect(0, 0, 65, 32, TFT_BLACK);
@@ -362,12 +392,12 @@ void Display_Task(void *arg){
     /**************************************************************************************/
     if(onScreen != MAINMENU){
       if (pressed && BackButton.contains(t_x, t_y)) {
-        BackButton.press(true);  // tell the button it is pressed
+        BackButton.press(true);  
       } else {
-        BackButton.press(false);  // tell the button it is NOT pressed
+        BackButton.press(false);  
       }
 
-      if (BackButton.justReleased()) BackButton.drawButton();     // draw normal
+      if (BackButton.justReleased()) BackButton.drawButton();     
 
       else if (BackButton.justPressed()) {
         keyboardOnScreen = false;
