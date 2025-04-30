@@ -3,3 +3,5 @@ sdkconfig
 sdkconfig.old
 managed_components/
 main/golioth_credentials.cpp
+flash_data/Mec3_LH.jsonl
+flash_data/Mec4_RH.jsonl
