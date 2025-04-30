@@ -279,8 +279,7 @@ void Display_Task(void *arg){
           tft.setFreeFont(&FreeSansBold9pt7b);
           LoadClassButton.setLabelDatum(0, 2, CC_DATUM);
           LoadClassButton.drawButton(true); 
-          if (activeFile == NONE)
-          {
+          if (activeFile == NONE){
             for(u8_t i = 0; i < 5; i++){
               tft.fillRect(46, 122 + 32 * attendanceFileNum, 230, 40, TFT_DARKERGREY);
               vTaskDelay(40 / portTICK_PERIOD_MS);
@@ -291,7 +290,9 @@ void Display_Task(void *arg){
               tft.drawString("used before pressing the button", 48, 144 + 32 * attendanceFileNum); 
               vTaskDelay(40 / portTICK_PERIOD_MS);
             }
+            continue;
           }
+          finger.emptyDatabase();
           
           String path = "/";
           path.concat(studentClassLabels[activeFile]);
@@ -300,21 +301,25 @@ void Display_Task(void *arg){
             Serial.println("Failed to open file for reading");
             return;
           }
-          u8_t i = 1;
+          u8_t i = 0;
           while (true) {
             JsonDocument student;
           
             DeserializationError err = deserializeJson(student, file);
             if (err) break;
           
-            // the zeroth index in all the following buffers is not used for the sake of simplicity——i is the fingerprint id in all cases
             first_name[i] = student["first_name"];
             surname[i] = student["surname"];
             student_number[i] = student["student_number"];
             attended[i] = student["attended"];
-            u8_t fingerprint_template[512];
-            strncpy((char *)fingerprint_template, student["fingerprint_template"], 512);
-            writeTemplateDataToSensor(i, fingerprint_template);
+            JsonArray fingerprint_template = student["fingerprint_template"];
+            u8_t fingerprint_template_buffer[512];
+            for (u16_t i = 0; i < 512; i++){
+              fingerprint_template_buffer[i] = fingerprint_template[i];
+            }
+            
+            writeTemplateDataToSensor(i+1, fingerprint_template_buffer);
+            vTaskDelay(20 / portTICK_PERIOD_MS);
 
             Serial.print(first_name[i]);
             Serial.print(" ");

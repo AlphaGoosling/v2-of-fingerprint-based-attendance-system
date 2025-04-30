@@ -83,7 +83,7 @@ void drawDeleteStudentEntry();
 void drawSyncWithServer();
 
 void enroll_storeTemplateToBuf(int id);
-void writeTemplateDataToSensor(u8_t id, uint8_t fingerTemplate[512]);
+void writeTemplateDataToSensor(u8_t id, u8_t *fingerprint_template);
 uint8_t getFingerprintID();
 
 u8_t listDir(fs::FS &fs, const char *dirname, uint8_t levels);

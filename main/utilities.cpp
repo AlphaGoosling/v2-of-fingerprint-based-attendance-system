@@ -496,7 +496,7 @@ void enroll_storeTemplateToBuf(int id){
   }
 }
 
-void writeTemplateDataToSensor(u8_t id, uint8_t fingerTemplate[512]) {
+void writeTemplateDataToSensor(u8_t id, u8_t *fingerprint_template) {
   int template_buf_size=512; //usually hobby grade sensors have 512 byte template data, watch datasheet to know the info
   
   Serial.println("Ready to write template to sensor...");
@@ -506,7 +506,7 @@ void writeTemplateDataToSensor(u8_t id, uint8_t fingerTemplate[512]) {
   }
   Serial.print("Writing template against ID #"); Serial.println(id);
 
-  if (finger.write_template_to_sensor(template_buf_size,fingerTemplate)) { //telling the sensor to download the template data to it's char buffer from upper computer (this microcontroller's "fingerTemplate" buffer)
+  if (finger.write_template_to_sensor(template_buf_size, fingerprint_template)) { //telling the sensor to download the template data to it's char buffer from upper computer (this microcontroller's "fingerTemplate" buffer)
     Serial.println("now writing to sensor...");
   } else {
     Serial.println("writing to sensor failed");
