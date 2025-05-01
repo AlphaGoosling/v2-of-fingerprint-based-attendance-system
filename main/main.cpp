@@ -16,10 +16,11 @@ extern char studentClassLabels[8][16];
 u8_t attendanceFileNum = 0;
 u8_t loadedFile = NONE;
 JsonDocument attendance_doc;
-const char* first_name[NUM_OF_STUDENTS];
-const char* surname[NUM_OF_STUDENTS];
+char first_name[NUM_OF_STUDENTS][CHAR_LEN + 1];
+char surname[NUM_OF_STUDENTS][CHAR_LEN + 1];
 u32_t student_number[NUM_OF_STUDENTS];
 bool attended[NUM_OF_STUDENTS];
+u8_t studentIndex = 0;
 
 long timezone = 1;
 byte daysavetime = 1;
@@ -40,6 +41,8 @@ extern TFT_eSPI_Button WifiSsidField;
 extern TFT_eSPI_Button PasswordField;
 extern TFT_eSPI_Button TakeAttendanceButton;
 extern TFT_eSPI_Button LoadClassButton;
+extern TFT_eSPI_Button FinishButton;
+
 extern char keyboardKeyLabels[40];
 
 TaskHandle_t DisplayTaskHandler = NULL;
@@ -267,12 +270,12 @@ void Display_Task(void *arg){
             studentClasses[i].drawButton(false);  // draw normally
             activeFile = i;
           }
-          tft. drawRect(45, 85 + i * 32, 9, 9, TFT_WHITE);
-          tft.drawLine(45, 105 + i * 32, 160, 105 + i * 32, TFT_WHITE);
+          tft. drawRect(40, 85 + i * 32, 9, 9, TFT_WHITE);
+          tft.drawLine(40, 105 + i * 32, 160, 105 + i * 32, TFT_WHITE);
         } 
 
         for (uint8_t i = 0; i < attendanceFileNum; i++) {
-          (i == activeFile) ? (tft.fillRect(47, 87 + i * 32, 5, 5, TFT_WHITE)) : (tft.fillRect(47, 87 + i * 32, 5, 5, TFT_DARKERGREY)); //radiobutton
+          (i == activeFile) ? (tft.fillRect(42, 87 + i * 32, 5, 5, TFT_WHITE)) : (tft.fillRect(42, 87 + i * 32, 5, 5, TFT_DARKERGREY)); //radiobutton
         } 
 
         if (LoadClassButton.justPressed()) {
@@ -281,14 +284,14 @@ void Display_Task(void *arg){
           LoadClassButton.drawButton(true); 
           if (activeFile == NONE){
             for(u8_t i = 0; i < 5; i++){
-              tft.fillRect(46, 122 + 32 * attendanceFileNum, 230, 40, TFT_DARKERGREY);
-              vTaskDelay(40 / portTICK_PERIOD_MS);
-              tft.textcolor = TFT_GREEN;
+              tft.fillRect(41, 122 + 32 * attendanceFileNum, 240, 40, TFT_DARKERGREY);
+              vTaskDelay(25 / portTICK_PERIOD_MS);
+              tft.textcolor = TFT_RED;
               tft.textbgcolor = TFT_DARKERGREY;
               tft.setFreeFont(&FreeSerifItalic9pt7b);
-              tft.drawString("#Please select a student list to be", 48, 124 + 32 * attendanceFileNum);
-              tft.drawString("used before pressing the button", 48, 144 + 32 * attendanceFileNum); 
-              vTaskDelay(40 / portTICK_PERIOD_MS);
+              tft.drawString("#Please select a student list to be", 43, 124 + 32 * attendanceFileNum);
+              tft.drawString("used before pressing the button", 43, 144 + 32 * attendanceFileNum); 
+              vTaskDelay(25 / portTICK_PERIOD_MS);
             }
             continue;
           }
@@ -308,8 +311,8 @@ void Display_Task(void *arg){
             DeserializationError err = deserializeJson(student, file);
             if (err) break;
           
-            first_name[i] = student["first_name"];
-            surname[i] = student["surname"];
+            strncpy(first_name[i], (student["first_name"]), CHAR_LEN + 1);
+            strncpy(surname[i], (student["surname"]), CHAR_LEN + 1);
             student_number[i] = student["student_number"];
             attended[i] = student["attended"];
             JsonArray fingerprint_template = student["fingerprint_template"];
@@ -326,10 +329,12 @@ void Display_Task(void *arg){
             Serial.println(surname[i]);
             Serial.println(" ");
             i++;
+            studentIndex++;
           }
           
           file.close();
-          //Signal to the user that you have
+          loadedFile = activeFile;
+          RegAttMenuMsg();   //Signal to the user that you have loaded the student data
         }
         if (LoadClassButton.justReleased()) {
           tft.setFreeFont(&FreeSansBold9pt7b);
@@ -340,11 +345,27 @@ void Display_Task(void *arg){
         if (TakeAttendanceButton.justPressed()) {
           tft.setFreeFont(&FreeSansBold9pt7b);
           TakeAttendanceButton.setLabelDatum(0, 2, CC_DATUM);
-          TakeAttendanceButton.drawButton(true); 
-          //display info on screen that taking attendance is in progress add exit button
-          //prompt the user to touch the fingerprint sensor 
-          //when they do display their name and student number with the words attendance confirmed
-          //do again until
+          TakeAttendanceButton.drawButton(true);
+          for(u8_t i = 0; i < NUM_OF_STUDENTS; i++){
+            attended[i]= false;
+          } 
+          if (loadedFile == NONE){
+            for(u8_t i = 0; i < 5; i++){
+              tft.fillRect(41, 122 + 32 * attendanceFileNum, 240, 40, TFT_DARKERGREY);
+              vTaskDelay(25 / portTICK_PERIOD_MS);
+              tft.textcolor = TFT_RED;
+              tft.textbgcolor = TFT_DARKERGREY;
+              tft.setFreeFont(&FreeSerifItalic9pt7b);
+              tft.drawString("#Please load a student list to be", 43, 124 + 32 * attendanceFileNum);
+              tft.drawString("used, before pressing the button", 43, 144 + 32 * attendanceFileNum); 
+              vTaskDelay(25 / portTICK_PERIOD_MS);
+            }
+            tft.setFreeFont(&FreeSansBold9pt7b);
+            TakeAttendanceButton.setLabelDatum(0, 2, CC_DATUM);
+            TakeAttendanceButton.drawButton(false);
+            continue;
+          }
+          drawAttendanceModeMenu();
         }
         break;
       /**************************************************************************************/
@@ -359,8 +380,46 @@ void Display_Task(void *arg){
       case SYNC_WITH_SERVER:
       
         break;
-      default:
-        printf("Error! Unrecorgnised Main Menu key");
+      /**************************************************************************************/
+      case ATTENDANCE_MODE:
+        wasPressed = true;
+
+        if (pressed && FinishButton.contains(t_x, t_y)) {
+          FinishButton.press(true); 
+        } else {
+          FinishButton.press(false); 
+        }
+        
+        if (FinishButton.justPressed()) {
+          FinishButton.drawButton(true);
+
+          drawRegisterAttendanceMenu();
+        }
+
+        u8_t id = getFingerprintID();
+        if (id == 255) continue;
+        else
+        { 
+          id--;   //changing the id into the appropriate index into the buffers
+          attended[id] = true;
+          tft.fillRoundRect(20, 70, 280, 225, 10, TFT_DARKERGREY);
+
+          tft.setFreeFont(&FreeSans9pt7b);
+          tft.textbgcolor = TFT_DARKERGREY;
+          tft.drawString("Place fingerprint on sensor...", 40, 90 );
+
+          int textLength = tft.drawString(surname[id], 41, 125 );
+          textLength += tft.drawString(" ", 40 + textLength, 125 );
+          tft.drawString(first_name[id], 40 + textLength, 125 );
+
+          String student_number_t = String(student_number[id]);
+          tft.drawString(student_number_t, 40, 160);
+
+          tft.drawString("attended", 40, 195);
+          tft.fillRoundRect(130, 193, 20, 20, 3, TFT_DARKGREEN);
+          tft.drawWideLine(137,209,133,204,3,TFT_WHITE,TFT_DARKGREEN);
+          tft.drawWideLine(137,209,146,197,3,TFT_WHITE,TFT_DARKGREEN);
+        }
         break;
     }
 

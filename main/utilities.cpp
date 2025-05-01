@@ -4,6 +4,7 @@ extern uint8_t onScreen;
 extern struct golioth_client *client;
 extern TaskHandle_t NetworkTaskHandler;
 extern TaskHandle_t DisplayTaskHandler;
+extern u8_t loadedFile;
 /********************************************************************************************************************************************
                                                          WIFI FUNCTIONS               
 *********************************************************************************************************************************************/
@@ -155,6 +156,7 @@ TFT_eSPI_Button WifiSsidField;
 TFT_eSPI_Button WifiOnOffButton;
 TFT_eSPI_Button TakeAttendanceButton;
 TFT_eSPI_Button LoadClassButton;
+TFT_eSPI_Button FinishButton;
 
 char keyboardKeyLabels[40] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 
                                     'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', '>', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', ' ', ' ', '<' };
@@ -282,22 +284,22 @@ void drawRegisterAttendanceMenu(){
   tft.textbgcolor = TFT_BLACK;
   tft.setFreeFont(MAINMENU_FONT);
   //tft.setTextDatum(TL_DATUM); 
-  tft.drawString("LOAD CLASS FILE", 50, 30);
+  tft.drawString("TAKE ATTENDANCE", 40, 30);
 
   Serial.print("Number of attendance data files in littlefs storage: "); Serial.println(attendanceFileNum); 
   tft.setFreeFont(&FreeSans9pt7b);
 
-  tft.fillRoundRect(40, 70, 240, 95 + 32 * attendanceFileNum, 10, TFT_DARKERGREY);
+  tft.fillRoundRect(35, 70, 250, 95 + 32 * attendanceFileNum, 10, TFT_DARKERGREY);
   for (u8_t i = 0; i < attendanceFileNum; i++){
     Serial.print("Class file "); Serial.print(i + 1); Serial.print(": "); Serial.println(studentClassLabels[i]);
     studentClasses[i].setLabelDatum(-54, -5, TL_DATUM);
-    studentClasses[i].initButton(&tft, 116, 90 + i * 32, 150, 30, TFT_DARKERGREY, TFT_DARKERGREY, TFT_WHITE, studentClassLabels[i], KEY_TEXTSIZE);
+    studentClasses[i].initButton(&tft, 111, 90 + i * 32, 150, 30, TFT_DARKERGREY, TFT_DARKERGREY, TFT_WHITE, studentClassLabels[i], KEY_TEXTSIZE);
     studentClasses[i].drawButton();
   }
 
   for (u8_t i = 0; i < attendanceFileNum; i++){
-    tft. drawRect(45, 85 + i * 32, 9, 9, TFT_WHITE);
-    tft.drawLine(45, 105 + i * 32, 200, 105 + i * 32, TFT_WHITE);
+    tft. drawRect(40, 85 + i * 32, 9, 9, TFT_WHITE);
+    tft.drawLine(40, 105 + i * 32, 200, 105 + i * 32, TFT_WHITE);
   }
 
   tft.setFreeFont(&FreeSansBold9pt7b);
@@ -305,11 +307,7 @@ void drawRegisterAttendanceMenu(){
   LoadClassButton.initButton(&tft, 160, 100 + 32 * attendanceFileNum, 160, 30, TFT_WHITE, TFT_DARKGREEN, TFT_WHITE, "Load Class File", KEY_TEXTSIZE);
   LoadClassButton.drawButton();
 
-  tft.textcolor = TFT_GREEN;
-  tft.textbgcolor = TFT_DARKERGREY;
-  tft.setFreeFont(&FreeSerifItalic9pt7b);
-  tft.drawString("#Load a students list to be used", 48, 124 + 32 * attendanceFileNum);
-  tft.drawString("to register attendance", 48, 144 + 32 * attendanceFileNum);
+  RegAttMenuMsg();
 
   tft.setFreeFont(&FreeSansBold9pt7b);
   TakeAttendanceButton.setLabelDatum(0, 2, CC_DATUM);
@@ -402,6 +400,42 @@ void drawSyncWithServer(){
   BackButton.drawButton();
 }
 
+void drawAttendanceModeMenu(){
+  onScreen = ATTENDANCE_MODE;
+  tft.fillScreen(TFT_BLACK);
+  tft.textcolor = TFT_WHITE;
+  tft.textbgcolor = TFT_BLACK;
+  tft.setFreeFont(MAINMENU_FONT);
+  tft.drawString("ATTENDANCE MODE", 40, 30);
+  tft.fillRoundRect(20, 70, 280, 225, 10, TFT_DARKERGREY);
+
+  tft.setFreeFont(&FreeSans9pt7b);
+  tft.textbgcolor = TFT_DARKERGREY;
+  tft.drawString("Place fingerprint on sensor...", 40, 90 );
+  
+  tft.setFreeFont(&FreeSans9pt7b);
+  FinishButton.initButton(&tft, 160, 455, 100, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Finish", KEY_TEXTSIZE);
+  FinishButton.drawButton();
+}
+
+void RegAttMenuMsg(){
+  tft.textcolor = TFT_GREEN;
+  tft.textbgcolor = TFT_DARKERGREY;
+  tft.setFreeFont(&FreeSerifItalic9pt7b);
+  tft.fillRect(41, 122 + 32 * attendanceFileNum, 240, 40, TFT_DARKERGREY);
+  if(loadedFile == NONE){
+    tft.drawString("#Select a students list to be used", 43, 124 + 32 * attendanceFileNum);
+    tft.drawString("to register attendance", 43, 144 + 32 * attendanceFileNum);
+  }
+  else{
+    for (u8_t i = 0; i < attendanceFileNum; i++){
+      if (loadedFile == i){
+        int textLength = tft.drawString(studentClassLabels[i], 41, 124 + 32 * attendanceFileNum);
+        tft.drawString(" has been loaded", 41 + textLength, 124 + 32 * attendanceFileNum);
+      }
+    }
+  }
+}
 
 /********************************************************************************************************************************************
                                                       FINGERPRINT SCANNER FUNCTIONS               
@@ -530,16 +564,16 @@ uint8_t getFingerprintID() {
       break;
     case FINGERPRINT_NOFINGER:
       Serial.println("No finger detected");
-      return p;
+      return 255;
     case FINGERPRINT_PACKETRECIEVEERR:
       Serial.println("Communication error");
-      return p;
+      return 255;
     case FINGERPRINT_IMAGEFAIL:
       Serial.println("Imaging error");
-      return p;
+      return 255;
     default:
       Serial.println("Unknown error");
-      return p;
+      return 255;
   }
 
   // OK success!
@@ -551,19 +585,19 @@ uint8_t getFingerprintID() {
       break;
     case FINGERPRINT_IMAGEMESS:
       Serial.println("Image too messy");
-      return p;
+      return 255;
     case FINGERPRINT_PACKETRECIEVEERR:
       Serial.println("Communication error");
-      return p;
+      return 255;
     case FINGERPRINT_FEATUREFAIL:
       Serial.println("Could not find fingerprint features");
-      return p;
+      return 255;
     case FINGERPRINT_INVALIDIMAGE:
       Serial.println("Could not find fingerprint features");
-      return p;
+      return 255;
     default:
       Serial.println("Unknown error");
-      return p;
+      return 255;
   }
 
   // OK converted!
@@ -572,13 +606,13 @@ uint8_t getFingerprintID() {
     Serial.println("Found a print match!");
   } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
     Serial.println("Communication error");
-    return p;
+    return 255;
   } else if (p == FINGERPRINT_NOTFOUND) {
     Serial.println("Did not find a match");
-    return p;
+    return 255;
   } else {
     Serial.println("Unknown error");
-    return p;
+    return 255;
   }
 
   // found a match!
