@@ -391,11 +391,173 @@ void Display_Task(void *arg){
         }
         
         if (FinishButton.justPressed()) {
-          FinishButton.drawButton(true);
+          //FinishButton.drawButton(true);
+
+          tft.fillRoundRect(20, 70, 280, 225, 10, TFT_DARKERGREY);
+          tft.setFreeFont(&FreeSans9pt7b);
+          tft.textbgcolor = TFT_DARKERGREY;
+          tft.drawString("Saving...", 80, 140 );
+          
+          String currentTime = String(tmstruct.tm_hour, 2); (((currentTime += ':') +=  tmstruct.tm_min) += ':') += tmstruct.tm_sec;
+          String currentDate = String((tmstruct.tm_year) + 1900); (((currentDate += '/') += (tmstruct.tm_mon + 1)) += '/') += tmstruct.tm_mday;
+          attendance_doc["teacher's name"]  = "Dr. Mukisa Fictional";
+          attendance_doc["subject"]         = "mathematics";
+          attendance_doc["session_time"]    = currentTime;
+          attendance_doc["session_date"]    = currentDate;
+
+          JsonArray students = attendance_doc["students"].to<JsonArray>();
+          while (studentIndex != 0){
+            u8_t i = 0;
+            JsonObject students_0 = students.add<JsonObject>();
+            students_0["first_name"] = first_name[i];
+            students_0["surname"] = surname[i];
+            students_0["student_number"] = student_number[i];
+            students_0["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            JsonObject students_1 = students.add<JsonObject>();
+            students_1["first_name"] = first_name[i];
+            students_1["surname"] = surname[i];
+            students_1["student_number"] = student_number[i];
+            students_1["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            JsonObject students_2 = students.add<JsonObject>();
+            students_2["first_name"] = first_name[i];
+            students_2["surname"] = surname[i];
+            students_2["student_number"] = student_number[i];
+            students_2["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            JsonObject students_3 = students.add<JsonObject>();
+            students_3["first_name"] = first_name[i];
+            students_3["surname"] = surname[i];
+            students_3["student_number"] = student_number[i];
+            students_3["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            JsonObject students_4 = students.add<JsonObject>();
+            students_4["first_name"] = first_name[i];
+            students_4["surname"] = surname[i];
+            students_4["student_number"] = student_number[i];
+            students_4["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            JsonObject students_5 = students.add<JsonObject>();
+            students_5["first_name"] = first_name[i];
+            students_5["surname"] = surname[i];
+            students_5["student_number"] = student_number[i];
+            students_5["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            JsonObject students_6 = students.add<JsonObject>();
+            students_6["first_name"] = first_name[i];
+            students_6["surname"] = surname[i];
+            students_6["student_number"] = student_number[i];
+            students_6["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            JsonObject students_7 = students.add<JsonObject>();
+            students_7["first_name"] = first_name[i];
+            students_7["surname"] = surname[i];
+            students_7["student_number"] = student_number[i];
+            students_7["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            JsonObject students_8 = students.add<JsonObject>();
+            students_8["first_name"] = first_name[i];
+            students_8["surname"] = surname[i];
+            students_8["student_number"] = student_number[i];
+            students_8["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            JsonObject students_9 = students.add<JsonObject>();
+            students_9["first_name"] = first_name[i];
+            students_9["surname"] = surname[i];
+            students_9["student_number"] = student_number[i];
+            students_9["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            JsonObject students_10 = students.add<JsonObject>();
+            students_10["first_name"] = first_name[i];
+            students_10["surname"] = surname[i];
+            students_10["student_number"] = student_number[i];
+            students_10["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            JsonObject students_11 = students.add<JsonObject>();
+            students_11["first_name"] = first_name[i];
+            students_11["surname"] = surname[i];
+            students_11["student_number"] = student_number[i];
+            students_11["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            JsonObject students_12 = students.add<JsonObject>();
+            students_12["first_name"] = first_name[i];
+            students_12["surname"] = surname[i];
+            students_12["student_number"] = student_number[i];
+            students_12["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            JsonObject students_13 = students.add<JsonObject>();
+            students_13["first_name"] = first_name[i];
+            students_13["surname"] = surname[i];
+            students_13["student_number"] = student_number[i];
+            students_13["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            JsonObject students_14 = students.add<JsonObject>();
+            students_14["first_name"] = first_name[i];
+            students_14["surname"] = surname[i];
+            students_14["student_number"] = student_number[i];
+            students_14["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            JsonObject students_15 = students.add<JsonObject>();
+            students_15["first_name"] = first_name[i];
+            students_15["surname"] = surname[i];
+            students_15["student_number"] = student_number[i];
+            students_15["attended"] = attended[i];
+            i++;
+
+            if(i >= studentIndex) break;
+            ESP_LOGE(TAG_W, "This loop should not reaching this point");
+          }    
+
+          attendance_doc.shrinkToFit();  // optional
+
+          String path = "/sessions/ses_";
+          unsigned int seed = millis();
+          path.concat(rand_r(&seed)%1000000);
+          path.concat(".json");
+          fs::File attendance_file = LittleFS.open(path, FILE_WRITE);
+          if (!attendance_file) {
+            Serial.println("Failed to open file for writing");
+            return;
+          }
+          serializeJson(attendance_doc, attendance_file);
+
+          attendance_file.close();
 
           drawRegisterAttendanceMenu();
         }
 
+        if(finger.getImage() == FINGERPRINT_NOFINGER) continue;
         u8_t id = getFingerprintID();
         if (id == 255) continue;
         else

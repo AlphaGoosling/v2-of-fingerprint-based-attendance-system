@@ -570,6 +570,13 @@ uint8_t getFingerprintID() {
       return 255;
     case FINGERPRINT_IMAGEFAIL:
       Serial.println("Imaging error");
+
+      tft.fillRoundRect(20, 70, 280, 225, 10, TFT_DARKERGREY);
+      tft.setFreeFont(&FreeSans9pt7b);
+      tft.textbgcolor = TFT_DARKERGREY;
+      tft.drawString("Place fingerprint on sensor...", 40, 90 );
+      tft.drawString("Imaging error", 40, 120 );
+
       return 255;
     default:
       Serial.println("Unknown error");
@@ -585,15 +592,36 @@ uint8_t getFingerprintID() {
       break;
     case FINGERPRINT_IMAGEMESS:
       Serial.println("Image too messy");
+
+      tft.fillRoundRect(20, 70, 280, 225, 10, TFT_DARKERGREY);
+      tft.setFreeFont(&FreeSans9pt7b);
+      tft.textbgcolor = TFT_DARKERGREY;
+      tft.drawString("Place fingerprint on sensor...", 40, 90 );
+      tft.drawString("Image too messy", 40, 120 );
+
       return 255;
     case FINGERPRINT_PACKETRECIEVEERR:
       Serial.println("Communication error");
       return 255;
     case FINGERPRINT_FEATUREFAIL:
       Serial.println("Could not find fingerprint features");
+
+      tft.fillRoundRect(20, 70, 280, 225, 10, TFT_DARKERGREY);
+      tft.setFreeFont(&FreeSans9pt7b);
+      tft.textbgcolor = TFT_DARKERGREY;
+      tft.drawString("Place fingerprint on sensor...", 40, 90 );
+      tft.drawString("Could not find fingerprint features", 40, 120 );
+
       return 255;
     case FINGERPRINT_INVALIDIMAGE:
       Serial.println("Could not find fingerprint features");
+
+      tft.fillRoundRect(20, 70, 280, 225, 10, TFT_DARKERGREY);
+      tft.setFreeFont(&FreeSans9pt7b);
+      tft.textbgcolor = TFT_DARKERGREY;
+      tft.drawString("Place fingerprint on sensor...", 40, 90 );
+      tft.drawString("Could not find fingerprint features", 40, 120 );
+
       return 255;
     default:
       Serial.println("Unknown error");
@@ -609,6 +637,13 @@ uint8_t getFingerprintID() {
     return 255;
   } else if (p == FINGERPRINT_NOTFOUND) {
     Serial.println("Did not find a match");
+
+    tft.fillRoundRect(20, 70, 280, 225, 10, TFT_DARKERGREY);
+    tft.setFreeFont(&FreeSans9pt7b);
+    tft.textbgcolor = TFT_DARKERGREY;
+    tft.drawString("Place fingerprint on sensor...", 40, 90 );
+    tft.drawString("Did not find a match", 40, 120 );
+
     return 255;
   } else {
     Serial.println("Unknown error");
