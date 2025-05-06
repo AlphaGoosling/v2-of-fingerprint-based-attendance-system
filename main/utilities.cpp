@@ -159,6 +159,7 @@ TFT_eSPI_Button WifiOnOffButton;
 TFT_eSPI_Button TakeAttendanceButton;
 TFT_eSPI_Button LoadClassButton;
 TFT_eSPI_Button FinishButton;
+TFT_eSPI_Button SendFileButton;
 
 char keyboardKeyLabels[40] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 
                                     'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', '>', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', ' ', ' ', '<' };
@@ -419,9 +420,9 @@ void drawSyncWithServer(){
   tft.drawString("sent to the server", 43, 114 + 32 * attendanceFileNum);
 
   tft.setFreeFont(&FreeSansBold9pt7b);
-  TakeAttendanceButton.setLabelDatum(0, 2, CC_DATUM);
-  TakeAttendanceButton.initButton(&tft, 160, 170 + 32 * attendanceFileNum, 210, 40, TFT_WHITE, TFT_DARKGREEN, TFT_WHITE, "Send File", KEY_TEXTSIZE);
-  TakeAttendanceButton.drawButton();
+  SendFileButton.setLabelDatum(0, 2, CC_DATUM);
+  SendFileButton.initButton(&tft, 160, 170 + 32 * attendanceFileNum, 210, 40, TFT_WHITE, TFT_DARKGREEN, TFT_WHITE, "Send File", KEY_TEXTSIZE);
+  SendFileButton.drawButton();
 
   tft.setFreeFont(&FreeSans9pt7b);
   BackButton.initButton(&tft, 275, 455, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
@@ -458,8 +459,7 @@ void RegAttMenuMsg(){
   else{
     for (u8_t i = 0; i < studentlistNum; i++){
       if (loadedFile == i){
-        int textLength = tft.drawString(studentClassLists
-        [i], 41, 124 + 32 * studentlistNum);
+        int textLength = tft.drawString(studentClassLists[i], 41, 124 + 32 * studentlistNum);
         tft.drawString(" has been loaded", 41 + textLength, 124 + 32 * studentlistNum);
       }
     }

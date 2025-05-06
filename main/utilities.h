@@ -26,6 +26,7 @@ extern "C"{
   #include "esp_event.h"
   #include "nvs_flash.h"
   #include "golioth/client.h"
+  #include "golioth/stream.h"
   #include "lwip/err.h"
   #include "lwip/sys.h"
 }

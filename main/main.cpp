@@ -46,6 +46,7 @@ extern TFT_eSPI_Button PasswordField;
 extern TFT_eSPI_Button TakeAttendanceButton;
 extern TFT_eSPI_Button LoadClassButton;
 extern TFT_eSPI_Button FinishButton;
+extern TFT_eSPI_Button SendFileButton;
 
 extern char keyboardKeyLabels[40];
 
@@ -382,8 +383,105 @@ void Display_Task(void *arg){
         break;
       /**************************************************************************************/
       case SYNC_WITH_SERVER:
+      {
+        static u8_t selectedFile = NONE;
+        for (uint8_t i = 0; i < attendanceFileNum; i++) {
+          if (pressed && attendanceFiles[i].contains(t_x, t_y)) {
+            attendanceFiles[i].press(true);
+          } else {
+            attendanceFiles[i].press(false);
+          }
+        }
+        if (pressed && SendFileButton.contains(t_x, t_y)) {
+          SendFileButton.press(true);
+        } else {
+          SendFileButton.press(false);
+        }
+
+        // Checking if any key has changed state
+        for (uint8_t i = 0; i < attendanceFileNum; i++) {
+
+          if (attendanceFiles[i].justPressed()) {
+            tft.setFreeFont(&FreeSans9pt7b);
+            attendanceFiles[i].drawButton(true);  // draw inverted
+          }
+
+          if (attendanceFiles[i].justReleased()) {
+            tft.setFreeFont(&FreeSans9pt7b);
+            attendanceFiles[i].drawButton(false);  // draw normally
+            selectedFile = i;
+          }
+          tft. drawRect(40, 85 + i * 32, 9, 9, TFT_WHITE);
+          tft.drawLine(40, 105 + i * 32, 160, 105 + i * 32, TFT_WHITE);
+        } 
+
+        for (uint8_t i = 0; i < attendanceFileNum; i++) {
+          (i == selectedFile) ? (tft.fillRect(42, 87 + i * 32, 5, 5, TFT_WHITE)) : (tft.fillRect(42, 87 + i * 32, 5, 5, TFT_DARKERGREY)); //radiobutton
+        } 
       
+        if (SendFileButton.justReleased()) {
+          tft.setFreeFont(&FreeSansBold9pt7b);
+          SendFileButton.drawButton(false);  // draw normally
+        }
+        if (SendFileButton.justPressed()) {
+          tft.setFreeFont(&FreeSansBold9pt7b);
+          SendFileButton.drawButton(true);  // draw inverted
+
+          if (selectedFile == NONE){
+            for(u8_t i = 0; i < 5; i++){
+              tft.fillRect(41, 92 + 32 * attendanceFileNum, 240, 40, TFT_DARKERGREY);
+              vTaskDelay(25 / portTICK_PERIOD_MS);
+              tft.textcolor = TFT_RED;
+              tft.textbgcolor = TFT_DARKERGREY;
+              tft.setFreeFont(&FreeSerifItalic9pt7b);
+              tft.drawString("Please select an attendance file to", 43, 94 + 32 * attendanceFileNum);
+              tft.drawString("be sent before pressing the button", 43, 114 + 32 * attendanceFileNum); 
+              vTaskDelay(25 / portTICK_PERIOD_MS);
+            }
+            continue;
+          }
+          if (!wifiOn){
+            for(u8_t i = 0; i < 5; i++){
+              tft.fillRect(41, 92 + 32 * attendanceFileNum, 240, 40, TFT_DARKERGREY);
+              vTaskDelay(25 / portTICK_PERIOD_MS);
+              tft.textcolor = TFT_RED;
+              tft.textbgcolor = TFT_DARKERGREY;
+              tft.setFreeFont(&FreeSerifItalic9pt7b);
+              tft.drawString("Please turn wifi On before", 43, 94 + 32 * attendanceFileNum);
+              tft.drawString("attempting to send files to server", 43, 114 + 32 * attendanceFileNum);
+              vTaskDelay(25 / portTICK_PERIOD_MS);
+            }
+            continue;
+          }
+          
+          String path = "/sessions/";
+          path.concat(attendanceFileNames[selectedFile]);
+          fs::File jsonFile = LittleFS.open(path);
+          if (!jsonFile) {
+            Serial.println("Failed to open file for reading");
+            continue;
+          }
+          String jsonPayload;
+          while (jsonFile.available()) {
+            jsonPayload.concat(jsonFile.readString());
+          }
+          jsonFile.close();
+          Serial.print(jsonPayload);
+          int err = golioth_stream_set_async(client, attendanceFileNames[selectedFile], GOLIOTH_CONTENT_TYPE_JSON, (u8_t *)jsonPayload.c_str(), jsonPayload.length(), NULL, NULL);
+          Serial.print("Sending Status: ");Serial.println(err);
+
+          tft.fillRect(41, 92 + 32 * attendanceFileNum, 240, 40, TFT_DARKERGREY);
+          tft.textcolor = TFT_GREEN;
+          tft.textbgcolor = TFT_DARKERGREY;
+          tft.setFreeFont(&FreeSerifItalic9pt7b);
+          int textLength = tft.drawString("Done. ", 43, 94 + 32 * attendanceFileNum);
+          textLength += tft.drawString(attendanceFileNames[selectedFile], 43 + textLength, 94 + 32 * attendanceFileNum);
+          tft.drawString(" has", 43 + textLength, 94 + 32 * attendanceFileNum);
+          tft.drawString("been sent to the server", 43, 114 + 32 * attendanceFileNum);
+        }
+      }
         break;
+
       /**************************************************************************************/
       case ATTENDANCE_MODE:
         wasPressed = true;
@@ -745,9 +843,8 @@ void Network_Task(void *arg){
 
   uint16_t counter = 0;
   while(1) {
-    //GLTH_LOGI(TAG_W, "Hello, Golioth! #%d", counter);
-    printf("Golioth counter: %i\n", counter);
+    GLTH_LOGI(TAG_W, "Hello, Golioth! #%d", counter);
     ++counter;
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    vTaskDelay(60000 / portTICK_PERIOD_MS);
   }  
 }
