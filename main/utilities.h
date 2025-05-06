@@ -12,6 +12,7 @@
 
 extern "C"{
   #include "stdio.h"
+  #include "stdlib.h"
   #include "string.h"
   #include "sys/stat.h"
   #include "unistd.h"
@@ -89,7 +90,7 @@ void enroll_storeTemplateToBuf(int id);
 void writeTemplateDataToSensor(u8_t id, u8_t *fingerprint_template);
 uint8_t getFingerprintID();
 
-u8_t listDir(fs::FS &fs, const char *dirname, uint8_t levels);
+u8_t listDir(fs::FS &fs, const char *dirname, uint8_t levels, char Buffer[][16]);
 void createDir(fs::FS &fs, const char *path);
 void removeDir(fs::FS &fs, const char *path);
 void readFile(fs::FS &fs, const char *path);

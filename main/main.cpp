@@ -12,7 +12,9 @@ bool displayTaskIsSuspended; // Used to prevent the wifi event handler from tryi
 extern char wifiSsid[32];
 extern char wifiPassword[64];
 
-extern char studentClassLabels[8][16];
+char studentClassLists[8][16];
+char attendanceFileNames[8][16];
+u8_t studentlistNum = 0;
 u8_t attendanceFileNum = 0;
 u8_t loadedFile = NONE;
 JsonDocument attendance_doc;
@@ -22,7 +24,8 @@ u32_t student_number[NUM_OF_STUDENTS];
 bool attended[NUM_OF_STUDENTS];
 u8_t studentIndex = 0;
 
-long timezone = 1;
+struct tm tmstruct;
+long timezone = 3;
 byte daysavetime = 1;
 
 TFT_eSPI tft = TFT_eSPI();
@@ -31,10 +34,11 @@ char charBuffer[CHAR_LEN + 1] = "";
 uint8_t charIndex = 0;
 
 uint8_t onScreen; // keeps track of what is displayed on screen
-extern bool keyboardOnScreen;
+bool keyboardOnScreen = false;
 extern TFT_eSPI_Button keyboardKeys[40];    //keyboard buttons 
 extern TFT_eSPI_Button mainMenuKeys[5]; //main menu buttons
 extern TFT_eSPI_Button studentClasses[8];
+extern TFT_eSPI_Button attendanceFiles[8];
 extern TFT_eSPI_Button BackButton;
 extern TFT_eSPI_Button WifiOnOffButton;
 extern TFT_eSPI_Button WifiSsidField;
@@ -91,7 +95,7 @@ extern "C" void app_main()
     return;
   }
   Serial.println("List of files in root directory");
-  attendanceFileNum = listDir(LittleFS, "/", 1);
+  studentlistNum = listDir(LittleFS, "/", 0, studentClassLists);
 
   xTaskCreate(Network_Task, "Network", 4096, NULL, 4, &NetworkTaskHandler);
   vTaskDelay(500 / portTICK_PERIOD_MS);
@@ -117,7 +121,7 @@ void Display_Task(void *arg){
   bool wasPressed = false; // wasPressed will be set to true if the last State of the boolean "pressed" was true
   while(1){
     uint16_t t_x = 0, t_y = 0; // To store the touch coordinates
-    static uint16_t box_x = 0, box_y = 0; // To store the coordinates of the text field when one is pressed 
+    static uint16_t box_x = 0, box_y = 0; // To store the coordinates of the text field when one is pressed
     bool pressed = tft.getTouch(&t_x, &t_y); // Pressed will be set true if there is a valid touch on the screen
 
     displayTaskIsSuspended = true;         
@@ -239,7 +243,7 @@ void Display_Task(void *arg){
 /**************************************************************************************/
       case REGISTER_ATTENDANCE:
         static u8_t activeFile = (loadedFile == NONE ? NONE : activeFile);
-        for (uint8_t i = 0; i < attendanceFileNum; i++) {
+        for (uint8_t i = 0; i < studentlistNum; i++) {
           if (pressed && studentClasses[i].contains(t_x, t_y)) {
             studentClasses[i].press(true);
           } else {
@@ -258,7 +262,7 @@ void Display_Task(void *arg){
         }
 
         // Checking if any key has changed state
-        for (uint8_t i = 0; i < attendanceFileNum; i++) {
+        for (uint8_t i = 0; i < studentlistNum; i++) {
 
           if (studentClasses[i].justPressed()) {
             tft.setFreeFont(&FreeSans9pt7b);
@@ -274,7 +278,7 @@ void Display_Task(void *arg){
           tft.drawLine(40, 105 + i * 32, 160, 105 + i * 32, TFT_WHITE);
         } 
 
-        for (uint8_t i = 0; i < attendanceFileNum; i++) {
+        for (uint8_t i = 0; i < studentlistNum; i++) {
           (i == activeFile) ? (tft.fillRect(42, 87 + i * 32, 5, 5, TFT_WHITE)) : (tft.fillRect(42, 87 + i * 32, 5, 5, TFT_DARKERGREY)); //radiobutton
         } 
 
@@ -284,13 +288,13 @@ void Display_Task(void *arg){
           LoadClassButton.drawButton(true); 
           if (activeFile == NONE){
             for(u8_t i = 0; i < 5; i++){
-              tft.fillRect(41, 122 + 32 * attendanceFileNum, 240, 40, TFT_DARKERGREY);
+              tft.fillRect(41, 122 + 32 * studentlistNum, 240, 40, TFT_DARKERGREY);
               vTaskDelay(25 / portTICK_PERIOD_MS);
               tft.textcolor = TFT_RED;
               tft.textbgcolor = TFT_DARKERGREY;
               tft.setFreeFont(&FreeSerifItalic9pt7b);
-              tft.drawString("#Please select a student list to be", 43, 124 + 32 * attendanceFileNum);
-              tft.drawString("used before pressing the button", 43, 144 + 32 * attendanceFileNum); 
+              tft.drawString("#Please select a student list to be", 43, 124 + 32 * studentlistNum);
+              tft.drawString("used before pressing the button", 43, 144 + 32 * studentlistNum); 
               vTaskDelay(25 / portTICK_PERIOD_MS);
             }
             continue;
@@ -298,7 +302,7 @@ void Display_Task(void *arg){
           finger.emptyDatabase();
           
           String path = "/";
-          path.concat(studentClassLabels[activeFile]);
+          path.concat(studentClassLists[activeFile]);
           fs::File file = LittleFS.open(path);
           if (!file) {
             Serial.println("Failed to open file for reading");
@@ -351,13 +355,13 @@ void Display_Task(void *arg){
           } 
           if (loadedFile == NONE){
             for(u8_t i = 0; i < 5; i++){
-              tft.fillRect(41, 122 + 32 * attendanceFileNum, 240, 40, TFT_DARKERGREY);
+              tft.fillRect(41, 122 + 32 * studentlistNum, 240, 40, TFT_DARKERGREY);
               vTaskDelay(25 / portTICK_PERIOD_MS);
               tft.textcolor = TFT_RED;
               tft.textbgcolor = TFT_DARKERGREY;
               tft.setFreeFont(&FreeSerifItalic9pt7b);
-              tft.drawString("#Please load a student list to be", 43, 124 + 32 * attendanceFileNum);
-              tft.drawString("used, before pressing the button", 43, 144 + 32 * attendanceFileNum); 
+              tft.drawString("#Please load a student list to be", 43, 124 + 32 * studentlistNum);
+              tft.drawString("used, before pressing the button", 43, 144 + 32 * studentlistNum); 
               vTaskDelay(25 / portTICK_PERIOD_MS);
             }
             tft.setFreeFont(&FreeSansBold9pt7b);
@@ -726,18 +730,19 @@ void Network_Task(void *arg){
 
   client = golioth_client_create(&config);
   assert(client);
-  /*
+
+  golioth_client_stop(client);
+  vTaskSuspend(NULL);
+
   configTime(3600 * timezone, daysavetime * 3600, "time.nist.gov", "0.pool.ntp.org", "1.pool.ntp.org");
-  struct tm tmstruct;
   tmstruct.tm_year = 0;
   getLocalTime(&tmstruct, 3000);
   Serial.printf(
-    "\nNow is : %d-%02d-%02d %02d:%02d:%02d\n", (tmstruct.tm_year) + 1900, (tmstruct.tm_mon) + 1, tmstruct.tm_mday, tmstruct.tm_hour + 1, tmstruct.tm_min,
+    "\nNow is : %d-%02d-%02d %02d:%02d:%02d\n", (tmstruct.tm_year) + 1900, (tmstruct.tm_mon) + 1, tmstruct.tm_mday, tmstruct.tm_hour, tmstruct.tm_min,
     tmstruct.tm_sec
   );
-  Serial.println("");*/
-  golioth_client_stop(client);
-  vTaskSuspend(NULL);
+  Serial.println("");
+
   uint16_t counter = 0;
   while(1) {
     //GLTH_LOGI(TAG_W, "Hello, Golioth! #%d", counter);
