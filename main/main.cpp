@@ -2,21 +2,20 @@
 
 #define FORMAT_LITTLEFS_IF_FAILED true
 
-extern char *TAG_W;
-extern char *TAG_D;
+char *TAG_W = "wifi station";
+char *TAG_D = "Display";
 
 struct golioth_client *client;
 
 bool wifiOn = false;
 bool displayTaskIsSuspended; // Used to prevent the wifi event handler from trying to use SPI to display stuff on the screen while displayTask may be using it
-extern char wifiSsid[32];
-extern char wifiPassword[64];
+char wifiSsid[32] = "redmi-black";
+char wifiPassword[64] = "77777777";
 
 char studentClassLists[8][16];
 char attendanceFileNames[8][16];
 u8_t studentlistNum = 0;
 u8_t attendanceFileNum = 0;
-u8_t loadedFile = NONE;
 JsonDocument attendance_doc;
 char first_name[NUM_OF_STUDENTS][CHAR_LEN + 1];
 char surname[NUM_OF_STUDENTS][CHAR_LEN + 1];
@@ -47,6 +46,7 @@ extern TFT_eSPI_Button TakeAttendanceButton;
 extern TFT_eSPI_Button LoadClassButton;
 extern TFT_eSPI_Button FinishButton;
 extern TFT_eSPI_Button SendFileButton;
+extern TFT_eSPI_Button DeleteFileButton;
 
 extern char keyboardKeyLabels[40];
 
@@ -89,14 +89,14 @@ extern "C" void app_main()
   Serial.print(F("Packet len: ")); Serial.println(finger.packet_len);
   Serial.print(F("Baud rate: ")); Serial.println(finger.baud_rate);
 
-  //finger.getTemplateCount();
 
   if (!LittleFS.begin(FORMAT_LITTLEFS_IF_FAILED)) {
     Serial.println("LittleFS Mount Failed");
     return;
   }
-  Serial.println("List of files in root directory");
+  
   studentlistNum = listDir(LittleFS, "/", 0, studentClassLists);
+  attendanceFileNum = listDir(LittleFS, "/sessions", 0, attendanceFileNames);
 
   xTaskCreate(Network_Task, "Network", 4096, NULL, 4, &NetworkTaskHandler);
   vTaskDelay(500 / portTICK_PERIOD_MS);
@@ -243,7 +243,7 @@ void Display_Task(void *arg){
 
 /**************************************************************************************/
       case REGISTER_ATTENDANCE:
-        static u8_t activeFile = (loadedFile == NONE ? NONE : activeFile);
+        static u8_t activeFile = NONE;
         for (uint8_t i = 0; i < studentlistNum; i++) {
           if (pressed && studentClasses[i].contains(t_x, t_y)) {
             studentClasses[i].press(true);
@@ -262,7 +262,6 @@ void Display_Task(void *arg){
           TakeAttendanceButton.press(false);
         }
 
-        // Checking if any key has changed state
         for (uint8_t i = 0; i < studentlistNum; i++) {
 
           if (studentClasses[i].justPressed()) {
@@ -338,8 +337,7 @@ void Display_Task(void *arg){
           }
           
           file.close();
-          loadedFile = activeFile;
-          RegAttMenuMsg();   //Signal to the user that you have loaded the student data
+          RegAttMenuMsg(activeFile);   //Signal to the user that you have loaded the student data
         }
         if (LoadClassButton.justReleased()) {
           tft.setFreeFont(&FreeSansBold9pt7b);
@@ -354,7 +352,7 @@ void Display_Task(void *arg){
           for(u8_t i = 0; i < NUM_OF_STUDENTS; i++){
             attended[i]= false;
           } 
-          if (loadedFile == NONE){
+          if (activeFile == NONE){
             for(u8_t i = 0; i < 5; i++){
               tft.fillRect(41, 122 + 32 * studentlistNum, 240, 40, TFT_DARKERGREY);
               vTaskDelay(25 / portTICK_PERIOD_MS);
@@ -378,7 +376,7 @@ void Display_Task(void *arg){
       
         break;
       /**************************************************************************************/
-      case DELETE_STUDENT_ENTRY:
+      case DELETE_FILE:
       
         break;
       /**************************************************************************************/
@@ -403,12 +401,12 @@ void Display_Task(void *arg){
 
           if (attendanceFiles[i].justPressed()) {
             tft.setFreeFont(&FreeSans9pt7b);
-            attendanceFiles[i].drawButton(true);  // draw inverted
+            attendanceFiles[i].drawButton(true); 
           }
 
           if (attendanceFiles[i].justReleased()) {
             tft.setFreeFont(&FreeSans9pt7b);
-            attendanceFiles[i].drawButton(false);  // draw normally
+            attendanceFiles[i].drawButton(false);  
             selectedFile = i;
           }
           tft. drawRect(40, 85 + i * 32, 9, 9, TFT_WHITE);
@@ -416,16 +414,16 @@ void Display_Task(void *arg){
         } 
 
         for (uint8_t i = 0; i < attendanceFileNum; i++) {
-          (i == selectedFile) ? (tft.fillRect(42, 87 + i * 32, 5, 5, TFT_WHITE)) : (tft.fillRect(42, 87 + i * 32, 5, 5, TFT_DARKERGREY)); //radiobutton
+          (i == selectedFile) ? (tft.fillRect(42, 87 + i * 32, 5, 5, TFT_WHITE)) : (tft.fillRect(42, 87 + i * 32, 5, 5, TFT_DARKERGREY)); 
         } 
       
         if (SendFileButton.justReleased()) {
           tft.setFreeFont(&FreeSansBold9pt7b);
-          SendFileButton.drawButton(false);  // draw normally
+          SendFileButton.drawButton(false); 
         }
         if (SendFileButton.justPressed()) {
           tft.setFreeFont(&FreeSansBold9pt7b);
-          SendFileButton.drawButton(true);  // draw inverted
+          SendFileButton.drawButton(true); 
 
           if (selectedFile == NONE){
             for(u8_t i = 0; i < 5; i++){
@@ -750,7 +748,7 @@ void Display_Task(void *arg){
               break;
             
             default:
-              ESP_LOGE(TAG_D, "Unrecorgnised textbox clicked in wifi menu");
+              ESP_LOGE(TAG_D, "Unrecorgnised textbox clicked");
               break;
             }
             tft.fillRect(0, 0, 65, 32, TFT_BLACK);
@@ -768,7 +766,6 @@ void Display_Task(void *arg){
           tft.setTextColor(TFT_WHITE);    
           tft.setFreeFont(&FreeSans9pt7b);
           tft.textbgcolor = TFT_DARKERGREY;
-
           // Draw the string, the value returned is the width in pixels
           tft.fillRect(box_x + 4, box_y + 7, xwidth, 18, TFT_DARKERGREY);
           xwidth = tft.drawString(charBuffer, box_x + 4, box_y + 7);

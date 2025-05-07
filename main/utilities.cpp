@@ -12,11 +12,11 @@ extern u8_t loadedFile;
 extern bool wifiOn;
 extern bool displayTaskIsSuspended;
 
-char wifiSsid[32] = "redmi-black";
-char wifiPassword[64] = "77777777";
+extern char wifiSsid[32];
+extern char wifiPassword[64];
 
-char *TAG_W = "wifi station";
-char *TAG_D = "Display";
+extern char *TAG_W;
+extern char *TAG_D;
 
 static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data){
   
@@ -160,11 +160,12 @@ TFT_eSPI_Button TakeAttendanceButton;
 TFT_eSPI_Button LoadClassButton;
 TFT_eSPI_Button FinishButton;
 TFT_eSPI_Button SendFileButton;
+TFT_eSPI_Button DeleteFileButton;
 
 char keyboardKeyLabels[40] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 
                                     'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', '>', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', ' ', ' ', '<' };
 
-char *mainMenuKeyLabels[5] = {"WiFi", "Register Attendance", "Add new Entry", "Delete Entry", "Sync With Server"};
+char *mainMenuKeyLabels[5] = {"WiFi", "Register Attendance", "New Student/File", "Delete File", "Sync With Server"};
 
 extern char studentClassLists[8][16];
 extern char attendanceFileNames[8][16];
@@ -313,7 +314,7 @@ void drawRegisterAttendanceMenu(){
   LoadClassButton.initButton(&tft, 160, 100 + 32 * studentlistNum, 160, 30, TFT_WHITE, TFT_DARKGREEN, TFT_WHITE, "Load Class File", KEY_TEXTSIZE);
   LoadClassButton.drawButton();
 
-  RegAttMenuMsg();
+  RegAttMenuMsg(NONE);
 
   tft.setFreeFont(&FreeSansBold9pt7b);
   TakeAttendanceButton.setLabelDatum(0, 2, CC_DATUM);
@@ -366,22 +367,41 @@ void drawAddNewStudentMenu(){
 }
 
 void drawDeleteStudentEntry(){
-  onScreen = DELETE_STUDENT_ENTRY ;
+  onScreen = DELETE_FILE;
   tft.fillScreen((TFT_BLACK));
   tft.textcolor = TFT_WHITE;
   tft.textbgcolor = TFT_BLACK;
   tft.setFreeFont(MAINMENU_FONT);
-  tft.drawString("DELETE STUDENT", 55, 30);
+  tft.drawString("DELETE FILE", 90, 30);
 
-  tft.fillRoundRect(40, 70, 240, 225, 10, TFT_DARKERGREY);
   tft.setFreeFont(&FreeSans9pt7b);
-  tft.textbgcolor = TFT_DARKERGREY;
-  tft.drawString("Student number :", 50, 90);
 
-  TFT_eSPI_Button StudentNumberField;
-  tft.setTextDatum(TL_DATUM);
-  StudentNumberField.initButton(&tft, 150, 123, 200, 30, TFT_DARKGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
-  StudentNumberField.drawButton();
+  tft.fillRoundRect(35, 70, 250, 45 + 32 * (attendanceFileNum + studentlistNum), 10, TFT_DARKERGREY);
+  for (u8_t i = 0; i < attendanceFileNum; i++){
+    attendanceFiles[i].setLabelDatum(-54, -5, TL_DATUM);
+    attendanceFiles[i].initButton(&tft, 111, 90 + i * 32, 150, 30, TFT_DARKERGREY, TFT_DARKERGREY, TFT_WHITE, attendanceFileNames[i], KEY_TEXTSIZE);
+    attendanceFiles[i].drawButton();
+  }
+  for (u8_t i = 0; i < studentlistNum; i++){
+    studentClasses[i].setLabelDatum(-54, -5, TL_DATUM);
+    studentClasses[i].initButton(&tft, 111, 90 + (i + attendanceFileNum) * 32, 150, 30, TFT_DARKERGREY, TFT_DARKERGREY, TFT_WHITE, studentClassLists[i], KEY_TEXTSIZE);
+    studentClasses[i].drawButton();
+  }
+
+  for (u8_t i = 0; i < (attendanceFileNum + studentlistNum); i++){
+    tft. drawRect(40, 85 + i * 32, 9, 9, TFT_WHITE);
+    tft.drawLine(40, 105 + i * 32, 200, 105 + i * 32, TFT_WHITE);
+  }
+
+  tft.textcolor = TFT_GREEN;
+  tft.textbgcolor = TFT_DARKERGREY;
+  tft.setFreeFont(&FreeSerifItalic9pt7b);
+  tft.drawString("#Select the file you want to delete", 43, 94 + 32 * (attendanceFileNum + studentlistNum));
+
+  tft.setFreeFont(&FreeSansBold9pt7b);
+  DeleteFileButton.setLabelDatum(0, 2, CC_DATUM);
+  DeleteFileButton.initButton(&tft, 160, 150 + 32 * (attendanceFileNum + studentlistNum), 210, 40, TFT_WHITE, TFT_DARKGREEN, TFT_WHITE, "Delete File", KEY_TEXTSIZE);
+  DeleteFileButton.drawButton();
 
   tft.setFreeFont(&FreeSans9pt7b);
   BackButton.initButton(&tft, 275, 455, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
@@ -396,7 +416,6 @@ void drawSyncWithServer(){
   tft.setFreeFont(MAINMENU_FONT);
   tft.drawString("SYNC WITH SERVER", 40, 30);
 
-  attendanceFileNum = listDir(LittleFS, "/sessions", 0, attendanceFileNames);
   Serial.print("Number of attendance data files in littlefs storage: "); Serial.println(attendanceFileNum); 
   tft.setFreeFont(&FreeSans9pt7b);
 
@@ -447,22 +466,18 @@ void drawAttendanceModeMenu(){
   FinishButton.drawButton();
 }
 
-void RegAttMenuMsg(){
+void RegAttMenuMsg(u8_t activefile){
   tft.textcolor = TFT_GREEN;
   tft.textbgcolor = TFT_DARKERGREY;
   tft.setFreeFont(&FreeSerifItalic9pt7b);
   tft.fillRect(41, 122 + 32 * studentlistNum, 240, 40, TFT_DARKERGREY);
-  if(loadedFile == NONE){
+  if(activefile == NONE){
     tft.drawString("#Select a students list to be used", 43, 124 + 32 * studentlistNum);
     tft.drawString("to register attendance", 43, 144 + 32 * studentlistNum);
   }
   else{
-    for (u8_t i = 0; i < studentlistNum; i++){
-      if (loadedFile == i){
-        int textLength = tft.drawString(studentClassLists[i], 41, 124 + 32 * studentlistNum);
-        tft.drawString(" has been loaded", 41 + textLength, 124 + 32 * studentlistNum);
-      }
-    }
+    int textLength = tft.drawString(studentClassLists[activefile], 41, 124 + 32 * studentlistNum);
+    tft.drawString(" has been loaded", 41 + textLength, 124 + 32 * studentlistNum);
   }
 }
 

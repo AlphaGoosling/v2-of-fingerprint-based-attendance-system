@@ -38,7 +38,7 @@ extern "C"{
 #define WIFI_MENU             1
 #define REGISTER_ATTENDANCE   2
 #define ADD_NEW_STUDENT       3
-#define DELETE_STUDENT_ENTRY  4
+#define DELETE_FILE           4
 #define SYNC_WITH_SERVER      5
 #define ATTENDANCE_MODE       6
 
@@ -85,7 +85,7 @@ void drawAddNewStudentMenu();
 void drawDeleteStudentEntry();
 void drawSyncWithServer();
 void drawAttendanceModeMenu();
-void RegAttMenuMsg();
+void RegAttMenuMsg(u8_t activefile);
 
 void enroll_storeTemplateToBuf(int id);
 void writeTemplateDataToSensor(u8_t id, u8_t *fingerprint_template);
