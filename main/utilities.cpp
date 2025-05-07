@@ -161,6 +161,13 @@ TFT_eSPI_Button LoadClassButton;
 TFT_eSPI_Button FinishButton;
 TFT_eSPI_Button SendFileButton;
 TFT_eSPI_Button DeleteFileButton;
+TFT_eSPI_Button SurnameField;
+TFT_eSPI_Button FirstNameField;
+TFT_eSPI_Button StdNoField;
+TFT_eSPI_Button EnterFingerprintButton;
+TFT_eSPI_Button AddStudentButton;
+TFT_eSPI_Button AddFileButton;
+
 
 char keyboardKeyLabels[40] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 
                                     'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', '>', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', ' ', ' ', '<' };
@@ -334,29 +341,54 @@ void drawAddNewStudentMenu(){
   tft.setFreeFont(MAINMENU_FONT);
   tft.drawString("ADD NEW STUDENT", 40 , 30);
 
-  tft.fillRoundRect(40, 70, 240, 225, 10, TFT_DARKERGREY);
+  tft.fillRoundRect(20, 70, 280, 250 + 32 * studentlistNum, 10, TFT_DARKERGREY);
   tft.setFreeFont(&FreeSans9pt7b);
   tft.textbgcolor = TFT_DARKERGREY;
-  String WifiOptions[] = {"First Name", "Last Name", "Std No."};
-  for (u8_t i = 0; i < 3; i++){
-    tft.drawString(WifiOptions[i], 50, 100 + 50*i);
+  String studentOption[] = {"Surname:", "First Name:", "Std No:", "Fingerprint"};
+  for (u8_t i = 0; i < 4; i++){
+    tft.drawString(studentOption[i], 32, 90 + 40*i);
   }
-  tft.textcolor = TFT_GREEN;
-  tft.setFreeFont(&FreeSerifItalic9pt7b);
-  tft.drawString("#password must be between 8", 50, 250);
-  tft.drawString("and 12 characters long", 55, 270);
 
-  TFT_eSPI_Button FirstNameField;
-  FirstNameField.initButton(&tft, 205, 110, 125, 30, TFT_DARKGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
+  SurnameField.initButton(&tft, 209, 96, 165, 30, TFT_DARKGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
+  SurnameField.drawButton();
+
+  FirstNameField.initButton(&tft, 209, 136, 165, 30, TFT_DARKGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
   FirstNameField.drawButton();
 
-  TFT_eSPI_Button LastNameField;
-  LastNameField.initButton(&tft, 205, 160, 125, 30, TFT_DARKGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
-  LastNameField.drawButton();
+  StdNoField.initButton(&tft, 209, 176, 165, 30, TFT_DARKGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
+  StdNoField.drawButton();
 
-  TFT_eSPI_Button StdNumberField;
-  StdNumberField.initButton(&tft, 205, 210, 125, 30, TFT_DARKGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
-  StdNumberField.drawButton();
+  tft.setFreeFont(&FreeSansBold9pt7b);
+  EnterFingerprintButton.setLabelDatum(0, 2, CC_DATUM);
+  EnterFingerprintButton.initButton(&tft, 210, 216, 160, 30, TFT_WHITE, TFT_DARKGREEN, TFT_WHITE, "Enter Fingerprint", KEY_TEXTSIZE);
+  EnterFingerprintButton.drawButton();
+
+  tft.setFreeFont(&FreeSans9pt7b);
+  for (u8_t i = 0; i < studentlistNum; i++){
+    Serial.print("Class file "); Serial.print(i + 1); Serial.print(": "); Serial.println(studentClassLists[i]);
+    studentClasses[i].setLabelDatum(-54, -5, TL_DATUM);
+    studentClasses[i].initButton(&tft, 111, 260 + i * 32, 150, 30, TFT_DARKERGREY, TFT_DARKERGREY, TFT_WHITE, studentClassLists[i], KEY_TEXTSIZE);
+    studentClasses[i].drawButton();
+  }
+
+  for (u8_t i = 0; i < studentlistNum; i++){
+    tft. drawRect(40, 255 + i * 32, 9, 9, TFT_WHITE);
+    tft.drawLine(40, 275 + i * 32, 200, 275 + i * 32, TFT_WHITE);
+  }
+
+  tft.textcolor = TFT_GREEN;
+  tft.setFreeFont(&FreeSerifItalic9pt7b);
+  tft.drawString("#Select file to add student to ", 30, 255 + 32 * studentlistNum);
+
+  tft.setFreeFont(&FreeSansBold9pt7b);
+  AddStudentButton.setLabelDatum(0, 2, CC_DATUM);
+  AddStudentButton.initButton(&tft, 160, 294 + 32 * studentlistNum, 160, 30, TFT_WHITE, TFT_DARKGREEN, TFT_WHITE, "Add Student", KEY_TEXTSIZE);
+  AddStudentButton.drawButton();
+
+  tft.setFreeFont(&FreeSansBold9pt7b);
+  AddFileButton.setLabelDatum(-30, 2, CC_DATUM);
+  AddFileButton.initButton(&tft, 95, 455, 160, 30, TFT_WHITE, TFT_DARKGREEN, TFT_WHITE, "Add File", KEY_TEXTSIZE);
+  AddFileButton.drawButton();
 
   tft.setFreeFont(&FreeSans9pt7b);
   BackButton.initButton(&tft, 275, 455, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);

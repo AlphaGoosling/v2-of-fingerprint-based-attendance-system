@@ -47,6 +47,12 @@ extern TFT_eSPI_Button LoadClassButton;
 extern TFT_eSPI_Button FinishButton;
 extern TFT_eSPI_Button SendFileButton;
 extern TFT_eSPI_Button DeleteFileButton;
+extern TFT_eSPI_Button SurnameField;
+extern TFT_eSPI_Button FirstNameField;
+extern TFT_eSPI_Button StdNoField;
+extern TFT_eSPI_Button EnterFingerprintButton;
+extern TFT_eSPI_Button AddStudentButton;
+extern TFT_eSPI_Button AddFileButton;
 
 extern char keyboardKeyLabels[40];
 
