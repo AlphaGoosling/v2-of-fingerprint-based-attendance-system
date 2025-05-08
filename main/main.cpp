@@ -141,6 +141,7 @@ void Display_Task(void *arg){
     switch (onScreen){
 /**************************************************************************************/
       case MAINMENU:
+      {
         //Checking if any key coordinate boxes contain the touch coordinates
         for (uint8_t i = 0; i < 5; i++) {
           if (pressed && mainMenuKeys[i].contains(t_x, t_y)) {
@@ -167,7 +168,7 @@ void Display_Task(void *arg){
                 drawAddNewStudentMenu();
                 break;
               case 3:
-                drawDeleteStudentEntry();
+              drawDeleteFile();
                 break;
               case 4:
                 drawSyncWithServer();
@@ -178,9 +179,10 @@ void Display_Task(void *arg){
           }
         }
         break;
-
+      }
 /**************************************************************************************/
       case WIFI_MENU:
+      {
         if (pressed && WifiOnOffButton.contains(t_x, t_y)) {WifiOnOffButton.press(true);} 
         else {WifiOnOffButton.press(false);}
       
@@ -246,9 +248,10 @@ void Display_Task(void *arg){
           if(!keyboardOnScreen)drawKeyboard();
         }
         break;
-
+      }
 /**************************************************************************************/
       case REGISTER_ATTENDANCE:
+      {
         static u8_t activeFile = NONE;
         for (uint8_t i = 0; i < studentlistNum; i++) {
           if (pressed && studentClasses[i].contains(t_x, t_y)) {
@@ -377,14 +380,109 @@ void Display_Task(void *arg){
           drawAttendanceModeMenu();
         }
         break;
+      }
       /**************************************************************************************/
       case ADD_NEW_STUDENT:
-      
+      {
         break;
+      }
       /**************************************************************************************/
       case DELETE_FILE:
+      {  
+        static u8_t fileToDelete = NONE;
+
+        for (u8_t i = 0; i < (attendanceFileNum + studentlistNum); i++){
+          if (i < attendanceFileNum){
+            if (pressed && attendanceFiles[i].contains(t_x, t_y)) {
+              attendanceFiles[i].press(true);
+            } else {
+              attendanceFiles[i].press(false);
+            }
+          }else{
+            if (pressed && studentClasses[i-attendanceFileNum].contains(t_x, t_y)) {
+              studentClasses[i-attendanceFileNum].press(true);
+            } else {
+              studentClasses[i-attendanceFileNum].press(false);
+            }
+          }
+        }
+
+        if (pressed && DeleteFileButton.contains(t_x, t_y)) {
+          DeleteFileButton.press(true);
+        } else {
+          DeleteFileButton.press(false);
+        }
+
+        // Checking if any key has changed state
+        for (u8_t i = 0; i < (attendanceFileNum + studentlistNum); i++){
+          if (i < attendanceFileNum){
+            if (attendanceFiles[i].justPressed()) {
+              tft.setFreeFont(&FreeSans9pt7b);
+              attendanceFiles[i].drawButton(true); 
+            }
+  
+            if (attendanceFiles[i].justReleased()) {
+              tft.setFreeFont(&FreeSans9pt7b);
+              attendanceFiles[i].drawButton(false);  
+              fileToDelete = i;
+            }
+          }else{
+            if (studentClasses[i-attendanceFileNum].justPressed()) {
+              tft.setFreeFont(&FreeSans9pt7b);
+              studentClasses[i-attendanceFileNum].drawButton(true); 
+            }
+  
+            if (studentClasses[i-attendanceFileNum].justReleased()) {
+              tft.setFreeFont(&FreeSans9pt7b);
+              studentClasses[i-attendanceFileNum].drawButton(false);  
+              fileToDelete = i;
+            }
+          }
+          tft. drawRect(40, 85 + i * 32, 9, 9, TFT_WHITE);
+          tft.drawLine(40, 105 + i * 32, 200, 105 + i * 32, TFT_WHITE);
+        }
+
+        for (uint8_t i = 0; i < (attendanceFileNum + studentlistNum); i++) {
+          (i == fileToDelete) ? (tft.fillRect(42, 87 + i * 32, 5, 5, TFT_WHITE)) : (tft.fillRect(42, 87 + i * 32, 5, 5, TFT_DARKERGREY)); 
+        } 
       
+        if (DeleteFileButton.justReleased()) {
+          tft.setFreeFont(&FreeSansBold9pt7b);
+          DeleteFileButton.drawButton(false); 
+        }
+        if (DeleteFileButton.justPressed()) {
+          tft.setFreeFont(&FreeSansBold9pt7b);
+          DeleteFileButton.drawButton(true);
+
+          if (fileToDelete == NONE){
+            for(u8_t i = 0; i < 5; i++){
+              tft.fillRect(41, 92 + 32 * (attendanceFileNum + studentlistNum), 240, 20, TFT_DARKERGREY);
+              vTaskDelay(25 / portTICK_PERIOD_MS);
+              tft.textcolor = TFT_RED;
+              tft.textbgcolor = TFT_DARKERGREY;
+              tft.setFreeFont(&FreeSerifItalic9pt7b);
+              tft.drawString("#Select the file you want to delete", 43, 94 + 32 * (attendanceFileNum + studentlistNum));
+              vTaskDelay(25 / portTICK_PERIOD_MS);
+            }
+            continue;
+          }
+
+          String path = "";
+          if (fileToDelete < attendanceFileNum){
+            path += "/sessions/";
+            path.concat(attendanceFileNames[fileToDelete]);
+          }else{
+            path += "/";
+            path.concat(studentClassLists[fileToDelete - attendanceFileNum]);
+          }
+          deleteFile(LittleFS, path.c_str());
+
+          studentlistNum = listDir(LittleFS, "/", 0, studentClassLists);
+          attendanceFileNum = listDir(LittleFS, "/sessions", 0, attendanceFileNames);
+          drawDeleteFile();
+        }
         break;
+      }
       /**************************************************************************************/
       case SYNC_WITH_SERVER:
       {
@@ -401,6 +499,7 @@ void Display_Task(void *arg){
         } else {
           SendFileButton.press(false);
         }
+        
 
         // Checking if any key has changed state
         for (uint8_t i = 0; i < attendanceFileNum; i++) {
@@ -483,11 +582,11 @@ void Display_Task(void *arg){
           tft.drawString(" has", 43 + textLength, 94 + 32 * attendanceFileNum);
           tft.drawString("been sent to the server", 43, 114 + 32 * attendanceFileNum);
         }
-      }
         break;
-
+      }
       /**************************************************************************************/
       case ATTENDANCE_MODE:
+      {
         wasPressed = true;
 
         if (pressed && FinishButton.contains(t_x, t_y)) {
@@ -689,6 +788,12 @@ void Display_Task(void *arg){
           tft.drawWideLine(137,209,146,197,3,TFT_WHITE,TFT_DARKGREEN);
         }
         break;
+      }
+        /**************************************************************************************/
+      case ADD_FILE:
+      {
+       break; 
+      }
     }
 
     /**************************************************************************************/

@@ -398,7 +398,7 @@ void drawAddNewStudentMenu(){
   //drawKeyboard();
 }
 
-void drawDeleteStudentEntry(){
+void drawDeleteFile(){
   onScreen = DELETE_FILE;
   tft.fillScreen((TFT_BLACK));
   tft.textcolor = TFT_WHITE;
@@ -409,15 +409,16 @@ void drawDeleteStudentEntry(){
   tft.setFreeFont(&FreeSans9pt7b);
 
   tft.fillRoundRect(35, 70, 250, 45 + 32 * (attendanceFileNum + studentlistNum), 10, TFT_DARKERGREY);
-  for (u8_t i = 0; i < attendanceFileNum; i++){
-    attendanceFiles[i].setLabelDatum(-54, -5, TL_DATUM);
-    attendanceFiles[i].initButton(&tft, 111, 90 + i * 32, 150, 30, TFT_DARKERGREY, TFT_DARKERGREY, TFT_WHITE, attendanceFileNames[i], KEY_TEXTSIZE);
-    attendanceFiles[i].drawButton();
-  }
-  for (u8_t i = 0; i < studentlistNum; i++){
-    studentClasses[i].setLabelDatum(-54, -5, TL_DATUM);
-    studentClasses[i].initButton(&tft, 111, 90 + (i + attendanceFileNum) * 32, 150, 30, TFT_DARKERGREY, TFT_DARKERGREY, TFT_WHITE, studentClassLists[i], KEY_TEXTSIZE);
-    studentClasses[i].drawButton();
+  for (u8_t i = 0; i < (attendanceFileNum + studentlistNum); i++){
+    if (i < attendanceFileNum){
+      attendanceFiles[i].setLabelDatum(-54, -5, TL_DATUM);
+      attendanceFiles[i].initButton(&tft, 111, 90 + i * 32, 150, 30, TFT_DARKERGREY, TFT_DARKERGREY, TFT_WHITE, attendanceFileNames[i], KEY_TEXTSIZE);
+      attendanceFiles[i].drawButton();
+    }else{
+      studentClasses[i-attendanceFileNum].setLabelDatum(-54, -5, TL_DATUM);
+      studentClasses[i-attendanceFileNum].initButton(&tft, 111, 90 + i * 32, 150, 30, TFT_DARKERGREY, TFT_DARKERGREY, TFT_WHITE, studentClassLists[i-attendanceFileNum], KEY_TEXTSIZE);
+      studentClasses[i-attendanceFileNum].drawButton();
+    }
   }
 
   for (u8_t i = 0; i < (attendanceFileNum + studentlistNum); i++){

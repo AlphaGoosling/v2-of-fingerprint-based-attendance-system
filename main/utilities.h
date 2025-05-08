@@ -41,6 +41,7 @@ extern "C"{
 #define DELETE_FILE           4
 #define SYNC_WITH_SERVER      5
 #define ATTENDANCE_MODE       6
+#define ADD_FILE              7
 
 #define NONE                  255
 #define WIFI_SSID_BOX         254
@@ -82,7 +83,7 @@ void drawMainmenu();
 void drawWifiMenu();
 void drawRegisterAttendanceMenu();
 void drawAddNewStudentMenu();
-void drawDeleteStudentEntry();
+void drawDeleteFile();
 void drawSyncWithServer();
 void drawAttendanceModeMenu();
 void RegAttMenuMsg(u8_t activefile);
