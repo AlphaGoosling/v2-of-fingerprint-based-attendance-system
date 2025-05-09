@@ -46,14 +46,10 @@ extern "C"{
 #define NONE                  255
 #define WIFI_SSID_BOX         254
 #define WIFI_PASSWORD_BOX     253
-#define CLASS_FILE_1          0
-#define CLASS_FILE_2          1
-#define CLASS_FILE_3          2
-#define CLASS_FILE_4          3
-#define CLASS_FILE_5          4
-#define CLASS_FILE_6          5
-#define CLASS_FILE_7          6
-#define CLASS_FILE_8          7
+#define SURNAME_FIELD         252
+#define FIRST_NAME_FIELD      251
+#define STD_NO_FIELD          250
+
 
 
 //Main menu key sizes
@@ -86,9 +82,11 @@ void drawAddNewStudentMenu();
 void drawDeleteFile();
 void drawSyncWithServer();
 void drawAttendanceModeMenu();
+void drawAddFileMenu();
 void RegAttMenuMsg(u8_t activefile);
+void drawHalf();
 
-void enroll_storeTemplateToBuf(int id);
+u8_t enroll_storeTemplateToBuf();
 void writeTemplateDataToSensor(u8_t id, u8_t *fingerprint_template);
 uint8_t getFingerprintID();
 

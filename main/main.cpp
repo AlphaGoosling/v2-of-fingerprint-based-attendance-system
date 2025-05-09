@@ -23,6 +23,11 @@ u32_t student_number[NUM_OF_STUDENTS];
 bool attended[NUM_OF_STUDENTS];
 u8_t studentIndex = 0;
 
+char newStudentSurname[CHAR_LEN + 1] = " ";
+char newStudentFirstName[CHAR_LEN + 1] = " ";
+u32_t newStudentStdNo = NULL;
+u8_t newStudentFingerprint[512] = " ";
+
 struct tm tmstruct;
 long timezone = 3;
 byte daysavetime = 1;
@@ -53,6 +58,7 @@ extern TFT_eSPI_Button StdNoField;
 extern TFT_eSPI_Button EnterFingerprintButton;
 extern TFT_eSPI_Button AddStudentButton;
 extern TFT_eSPI_Button AddFileButton;
+TFT_eSPI_Button newFileField;
 
 extern char keyboardKeyLabels[40];
 
@@ -384,6 +390,184 @@ void Display_Task(void *arg){
       /**************************************************************************************/
       case ADD_NEW_STUDENT:
       {
+        static u8_t fileToSaveTo = NONE;
+
+        if (pressed && SurnameField.contains(t_x, t_y)) {SurnameField.press(true);} 
+        else { SurnameField.press(false);}
+
+        if (pressed && FirstNameField.contains(t_x, t_y)) {FirstNameField.press(true);}
+        else {FirstNameField.press(false);} 
+
+        if (pressed && StdNoField.contains(t_x, t_y)) {StdNoField.press(true);}
+        else {StdNoField.press(false);} 
+
+        if (pressed && EnterFingerprintButton.contains(t_x, t_y)) {EnterFingerprintButton.press(true);}
+        else {EnterFingerprintButton.press(false);} 
+
+        if (pressed && AddStudentButton.contains(t_x, t_y) && !keyboardOnScreen) {AddStudentButton.press(true);}
+        else {AddStudentButton.press(false);} 
+
+        if (pressed && AddFileButton.contains(t_x, t_y) && !keyboardOnScreen) {AddFileButton.press(true);}
+        else {AddFileButton.press(false);}
+
+        for (u8_t i = 0; i < studentlistNum; i++)
+        {
+          if (pressed && studentClasses[i].contains(t_x, t_y) && !keyboardOnScreen) {studentClasses[i].press(true);}
+          else {studentClasses[i].press(false);}
+        }
+        
+          //checking if any buttons changed state
+        if(SurnameField.justPressed()) {
+          activeElement = SURNAME_FIELD;
+          charIndex = 0;
+          charBuffer[charIndex] = 0;
+          box_x = (SurnameField.topleftcorner() >> 16); 
+          box_y = (SurnameField.topleftcorner());
+          tft.fillRect(box_x + 4, box_y + 7, 158, 18, TFT_DARKERGREY);
+          if(!keyboardOnScreen)drawKeyboard(); 
+        }
+
+        if(FirstNameField.justPressed()) {
+          activeElement = FIRST_NAME_FIELD;
+          charIndex = 0;
+          charBuffer[charIndex] = 0;
+          box_x = (FirstNameField.topleftcorner() >> 16); 
+          box_y = ((FirstNameField.topleftcorner() << 16) >> 16);
+          tft.fillRect(box_x + 4, box_y + 7, 158, 18, TFT_DARKERGREY);
+          if(!keyboardOnScreen)drawKeyboard();
+        }
+
+        if(StdNoField.justPressed()) {
+          activeElement = STD_NO_FIELD;
+          charIndex = 0;
+          charBuffer[charIndex] = 0;
+          box_x = (StdNoField.topleftcorner() >> 16); 
+          box_y = ((StdNoField.topleftcorner() << 16) >> 16);
+          tft.fillRect(box_x + 4, box_y + 7, 158, 18, TFT_DARKERGREY);
+          if(!keyboardOnScreen)drawKeyboard();
+        }
+
+        if(EnterFingerprintButton.justPressed()){
+          tft.setFreeFont(&FreeSansBold9pt7b);
+          EnterFingerprintButton.drawButton(true); 
+
+          u8_t answer = enroll_storeTemplateToBuf();
+          if (answer == 0){
+            tft.fillRect(128, 200, 164, 32, TFT_DARKERGREY);
+            tft.fillRoundRect(130, 201, 30, 30, 5, TFT_DARKGREEN);
+            tft.drawWideLine(139,225,133,218,5,TFT_WHITE,TFT_DARKGREEN);
+            tft.drawWideLine(139,225,155,210,5,TFT_WHITE,TFT_DARKGREEN);
+          }else{
+            tft.fillRect(128, 200, 164, 32, TFT_DARKERGREY);
+            tft.fillRoundRect(130, 201, 29, 29, 5, TFT_RED);
+            tft.drawWideLine(137,209,151,223,5,TFT_WHITE,TFT_RED);
+            tft.drawWideLine(137,223,151,209,5,TFT_WHITE,TFT_RED);
+            tft.textcolor = TFT_RED;
+            tft.textbgcolor = TFT_DARKERGREY;
+            tft.setFreeFont(&FreeSans9pt7b);
+            tft.drawString("Failed Try Again", 163, 205);
+
+            vTaskDelay(4000 / portTICK_PERIOD_MS);
+
+            tft.fillRect(128, 200, 170, 32, TFT_DARKERGREY);
+            EnterFingerprintButton.drawButton();
+          }
+        }
+          
+        for (uint8_t i = 0; i < studentlistNum; i++) {
+
+          if (studentClasses[i].justPressed()) {
+            tft.setFreeFont(&FreeSansBold9pt7b);
+            studentClasses[i].drawButton(true);  // draw inverted
+          }
+
+          if (studentClasses[i].justReleased()) {
+            tft.setFreeFont(&FreeSansBold9pt7b);
+            studentClasses[i].drawButton(false);  // draw normally
+            fileToSaveTo = i;
+          }
+          if (!keyboardOnScreen){
+            tft. drawRect(40, 255 + i * 32, 9, 9, TFT_WHITE);
+            tft.drawLine(40, 275 + i * 32, 200, 275 + i * 32, TFT_WHITE);
+          }
+        }
+
+        for (uint8_t i = 0; i < studentlistNum; i++) {
+          (i == fileToSaveTo) ? (tft.fillRect(42, 257 + i * 32, 5, 5, TFT_WHITE)) : (tft.fillRect(42, 257 + i * 32, 5, 5, TFT_DARKERGREY)); //radiobutton
+        } 
+
+        if(AddStudentButton.justReleased()){
+          tft.setFreeFont(&FreeSansBold9pt7b);
+          AddStudentButton.drawButton(false); 
+        }
+
+        if (AddStudentButton.justPressed()) {
+
+          tft.setFreeFont(&FreeSansBold9pt7b);
+          AddStudentButton.setLabelDatum(0, 2, CC_DATUM);
+          AddStudentButton.drawButton(true); 
+
+          if (newStudentSurname[0] == ' ' || newStudentFirstName[0] == ' ' || newStudentStdNo == NULL || newStudentFingerprint[0] == ' '){
+            Serial.print("newStudentSurname : ");Serial.println(newStudentSurname);
+            Serial.print("newStudentFirstName : ");Serial.println(newStudentFirstName);
+            Serial.print("newStudentStdNo : ");Serial.println(newStudentStdNo);
+            Serial.print("newStudentFingerprint : ");Serial.println((char*)newStudentFingerprint);
+            for(u8_t i = 0; i < 5; i++){
+              tft.fillRect(28, 253 + 32 * studentlistNum, 270, 30, TFT_DARKERGREY);
+              vTaskDelay(25 / portTICK_PERIOD_MS);
+              tft.textcolor = TFT_RED;
+              tft.textbgcolor = TFT_DARKERGREY;
+              tft.setFreeFont(&FreeSerifItalic9pt7b);
+              tft.drawString("#Fill all above fields before pressing", 30, 255 + 32 * studentlistNum);
+              vTaskDelay(25 / portTICK_PERIOD_MS);
+            }
+            continue;
+          }
+          if (fileToSaveTo == NONE){
+            for(u8_t i = 0; i < 5; i++){
+              tft.fillRect(28, 253 + 32 * studentlistNum, 270, 30, TFT_DARKERGREY);
+              vTaskDelay(25 / portTICK_PERIOD_MS);
+              tft.textcolor = TFT_RED;
+              tft.textbgcolor = TFT_DARKERGREY;
+              tft.setFreeFont(&FreeSerifItalic9pt7b);
+              tft.drawString("#Select class list before pressing button", 30, 255 + 32 * studentlistNum);
+              vTaskDelay(25 / portTICK_PERIOD_MS);
+            }
+            continue;
+          }
+
+          JsonObject newStudent;
+          newStudent["first_name"] = newStudentFirstName;
+          newStudent["surname"] = newStudentSurname;
+          newStudent["student_number"] = newStudentStdNo;
+          newStudent["attended"] = false;
+          JsonArray fingerprint_template = newStudent["fingerprint_template"].to<JsonArray>();
+          for(int i = 0; i < 512; i++){fingerprint_template.add(newStudentFingerprint[i]);}
+          attendance_doc.shrinkToFit();  // optional
+
+          String path = "/";
+          path.concat(studentClassLists[fileToSaveTo]);
+          fs::File file = LittleFS.open(path, FILE_APPEND);
+          if (!file) {
+            Serial.println("Failed to open file for writing");
+            return;
+          }
+          serializeJson(attendance_doc, file);
+          file.println();
+          file.close();
+
+          tft.textcolor = TFT_DARKGREEN;
+          tft.textbgcolor = TFT_DARKERGREY;
+          tft.setFreeFont(&FreeSerifItalic9pt7b);
+          tft.drawString("Done. Student added to chosen class list", 30, 255 + 32 * studentlistNum);
+        }
+
+        if(AddFileButton.justPressed()){
+          tft.setFreeFont(&FreeSans9pt7b);
+          AddFileButton.drawButton(true); 
+
+          drawAddFileMenu();
+        }
         break;
       }
       /**************************************************************************************/
@@ -733,14 +917,6 @@ void Display_Task(void *arg){
             i++;
 
             if(i >= studentIndex) break;
-            JsonObject students_15 = students.add<JsonObject>();
-            students_15["first_name"] = first_name[i];
-            students_15["surname"] = surname[i];
-            students_15["student_number"] = student_number[i];
-            students_15["attended"] = attended[i];
-            i++;
-
-            if(i >= studentIndex) break;
             ESP_LOGE(TAG_W, "This loop should not reaching this point");
           }    
 
@@ -844,6 +1020,12 @@ void Display_Task(void *arg){
           
           // Return key / Enter key, transfer value in charBuffer to relevant Buffer
           else if (i == 29) {
+            tft.fillRect(0, 0, 65, 32, TFT_BLACK);
+            tft.fillRect(0, 300, 320, 180, TFT_BLACK);
+            keyboardOnScreen = false;
+            tft.setFreeFont(&FreeSans9pt7b);
+            BackButton.initButton(&tft, 275, 455, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
+            BackButton.drawButton();
             switch (activeElement)
             {
             case NONE:
@@ -855,19 +1037,30 @@ void Display_Task(void *arg){
               break;
 
             case WIFI_PASSWORD_BOX:
-            strncpy(wifiPassword, charBuffer, (CHAR_LEN + 1));
+              strncpy(wifiPassword, charBuffer, (CHAR_LEN + 1));
+              break;
+
+            case SURNAME_FIELD:
+              strncpy(newStudentSurname, charBuffer, (CHAR_LEN + 1));
+              drawHalf();
               break;
             
+            case FIRST_NAME_FIELD:
+              strncpy(newStudentFirstName, charBuffer, (CHAR_LEN + 1));
+              drawHalf();
+              break;
+
+            case STD_NO_FIELD:
+            {
+              String StdNo = charBuffer;
+              newStudentStdNo = StdNo.toDouble();
+              drawHalf();
+              break;
+            }
             default:
               ESP_LOGE(TAG_D, "Unrecorgnised textbox clicked");
               break;
             }
-            tft.fillRect(0, 0, 65, 32, TFT_BLACK);
-            tft.fillRect(0, 300, 320, 180, TFT_BLACK);
-            keyboardOnScreen = false;
-            tft.setFreeFont(&FreeSans9pt7b);
-            BackButton.initButton(&tft, 275, 455, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
-            BackButton.drawButton();
           }
           else{
             ESP_LOGE(TAG_D, "keyboard key does not exist");

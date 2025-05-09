@@ -167,6 +167,7 @@ TFT_eSPI_Button StdNoField;
 TFT_eSPI_Button EnterFingerprintButton;
 TFT_eSPI_Button AddStudentButton;
 TFT_eSPI_Button AddFileButton;
+TFT_eSPI_Button newFileField;
 
 
 char keyboardKeyLabels[40] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 
@@ -177,6 +178,7 @@ char *mainMenuKeyLabels[5] = {"WiFi", "Register Attendance", "New Student/File",
 extern char studentClassLists[8][16];
 extern char attendanceFileNames[8][16];
 
+extern u8_t newStudentFingerprint[512];
 
 void drawKeyboard(){
   keyboardOnScreen = true;
@@ -386,16 +388,13 @@ void drawAddNewStudentMenu(){
   AddStudentButton.drawButton();
 
   tft.setFreeFont(&FreeSansBold9pt7b);
-  AddFileButton.setLabelDatum(-30, 2, CC_DATUM);
-  AddFileButton.initButton(&tft, 95, 455, 160, 30, TFT_WHITE, TFT_DARKGREEN, TFT_WHITE, "Add File", KEY_TEXTSIZE);
+  AddFileButton.setLabelDatum(-5, 2, CC_DATUM);
+  AddFileButton.initButton(&tft, 105, 455, 190, 30, TFT_WHITE, TFT_DARKGREEN, TFT_WHITE, "New Class List file", KEY_TEXTSIZE);
   AddFileButton.drawButton();
 
   tft.setFreeFont(&FreeSans9pt7b);
   BackButton.initButton(&tft, 275, 455, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
   BackButton.drawButton();
-
-
-  //drawKeyboard();
 }
 
 void drawDeleteFile(){
@@ -499,6 +498,15 @@ void drawAttendanceModeMenu(){
   FinishButton.drawButton();
 }
 
+void drawAddFileMenu(){
+  onScreen = ADD_FILE;
+  tft.fillScreen(TFT_BLACK);
+  tft.fillRoundRect(35, 70, 250, 65, 10, TFT_DARKERGREY);
+  newFileField.initButton(&tft, 151, 93, 234, 30, TFT_DARKERGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
+  tft.drawString("#Enter file name above", 43, 110);
+}
+
+
 void RegAttMenuMsg(u8_t activefile){
   tft.textcolor = TFT_GREEN;
   tft.textbgcolor = TFT_DARKERGREY;
@@ -513,15 +521,37 @@ void RegAttMenuMsg(u8_t activefile){
     tft.drawString(" has been loaded", 41 + textLength, 124 + 32 * studentlistNum);
   }
 }
+void drawHalf(){
+  tft.fillRoundRect(20, 255, 280, 65 + 32 * studentlistNum, 10, TFT_DARKERGREY);
+  tft.setFreeFont(&FreeSans9pt7b);
+  for (u8_t i = 0; i < studentlistNum; i++){
+    Serial.print("Class file "); Serial.print(i + 1); Serial.print(": "); Serial.println(studentClassLists[i]);
+    studentClasses[i].setLabelDatum(-54, -5, TL_DATUM);
+    studentClasses[i].initButton(&tft, 111, 260 + i * 32, 150, 30, TFT_DARKERGREY, TFT_DARKERGREY, TFT_WHITE, studentClassLists[i], KEY_TEXTSIZE);
+    studentClasses[i].drawButton();
+  }
+
+  for (u8_t i = 0; i < studentlistNum; i++){
+    tft. drawRect(40, 255 + i * 32, 9, 9, TFT_WHITE);
+    tft.drawLine(40, 275 + i * 32, 200, 275 + i * 32, TFT_WHITE);
+  }
+
+  tft.textcolor = TFT_GREEN;
+  tft.setFreeFont(&FreeSerifItalic9pt7b);
+  tft.drawString("#Select file to add student to ", 30, 255 + 32 * studentlistNum);
+
+  tft.setFreeFont(&FreeSansBold9pt7b);
+  AddStudentButton.drawButton();
+  AddFileButton.drawButton();
+}
 
 /********************************************************************************************************************************************
                                                       FINGERPRINT SCANNER FUNCTIONS               
 *********************************************************************************************************************************************/  
 extern Adafruit_Fingerprint finger;
 extern HardwareSerial fingerprintSerial;
-uint8_t f_buf[512];
 
-void enroll_storeTemplateToBuf(int id){
+u8_t enroll_storeTemplateToBuf(){
 
   Serial.println("Waiting for valid finger....");
   while (finger.getImage() != FINGERPRINT_OK) { // press down a finger take 1st image 
@@ -533,7 +563,7 @@ void enroll_storeTemplateToBuf(int id){
     Serial.println("Image converted");
   } else {
     Serial.println("Conversion error");
-    return;
+    return 1;
   }
 
   Serial.println("Remove finger");
@@ -555,9 +585,8 @@ void enroll_storeTemplateToBuf(int id){
     Serial.println("Image converted");
   } else {
     Serial.println("Conversion error");
-    return;
+    return 1;
   }
-
 
   Serial.println("Creating model...");
 
@@ -566,7 +595,7 @@ void enroll_storeTemplateToBuf(int id){
     Serial.println("Template created");
   } else {
     Serial.println("Template not build");
-    return;
+    return 1;
   }
 
   Serial.println("Attempting to get template..."); 
@@ -574,37 +603,21 @@ void enroll_storeTemplateToBuf(int id){
     Serial.println("Transferring Template...."); 
   } else {
     Serial.println("Failed to transfer template");
-    return;
+    return 1;
   }
   
-  if (finger.get_template_buffer(512, f_buf) == FINGERPRINT_OK) { //read the template data from sensor and save it to buffer f_buf
+  if (finger.get_template_buffer(512, newStudentFingerprint) == FINGERPRINT_OK) { //read the template data from sensor and save it to buffer f_buf
     Serial.println("Template data (comma sperated HEX):");
     for (int k = 0; k < (512/finger.packet_len); k++) { //printing out the template data in seperate rows, where row-length = packet_length
       for (int l = 0; l < finger.packet_len; l++) {
         Serial.print("0x");
-        Serial.print(f_buf[(k * finger.packet_len) + l], HEX);
+        Serial.print(newStudentFingerprint[(k * finger.packet_len) + l], HEX);
         Serial.print(",");
       }
       Serial.println("");
     }
   }
-  Serial.print("ID "); Serial.println(id);
-  p = finger.storeModel(id);
-  if (p == FINGERPRINT_OK) {
-    Serial.println("Stored!");
-  } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
-    Serial.println("Communication error");
-    return;
-  } else if (p == FINGERPRINT_BADLOCATION) {
-    Serial.println("Could not store in that location");
-    return;
-  } else if (p == FINGERPRINT_FLASHERR) {
-    Serial.println("Error writing to flash");
-    return;
-  } else {
-    Serial.println("Unknown error");
-    return;
-  }
+  return 0;
 }
 
 void writeTemplateDataToSensor(u8_t id, u8_t *fingerprint_template) {
