@@ -49,6 +49,7 @@ extern "C"{
 #define SURNAME_FIELD         252
 #define FIRST_NAME_FIELD      251
 #define STD_NO_FIELD          250
+#define NEW_FILE_FIELD        249
 
 
 
@@ -91,12 +92,7 @@ void writeTemplateDataToSensor(u8_t id, u8_t *fingerprint_template);
 uint8_t getFingerprintID();
 
 u8_t listDir(fs::FS &fs, const char *dirname, uint8_t levels, char Buffer[][16]);
-void createDir(fs::FS &fs, const char *path);
-void removeDir(fs::FS &fs, const char *path);
-void readFile(fs::FS &fs, const char *path);
 void writeFile(fs::FS &fs, const char *path, const char *message);
-void appendFile(fs::FS &fs, const char *path, const char *message);
-void renameFile(fs::FS &fs, const char *path1, const char *path2);
 void deleteFile(fs::FS &fs, const char *path);
 
 #endif // UTILITIES_H_

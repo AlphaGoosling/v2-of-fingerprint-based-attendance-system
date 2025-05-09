@@ -58,7 +58,7 @@ extern TFT_eSPI_Button StdNoField;
 extern TFT_eSPI_Button EnterFingerprintButton;
 extern TFT_eSPI_Button AddStudentButton;
 extern TFT_eSPI_Button AddFileButton;
-TFT_eSPI_Button newFileField;
+extern TFT_eSPI_Button NewFileField;
 
 extern char keyboardKeyLabels[40];
 
@@ -967,8 +967,17 @@ void Display_Task(void *arg){
       }
         /**************************************************************************************/
       case ADD_FILE:
-      {
-       break; 
+      { 
+        if(activeElement != NEW_FILE_FIELD){
+          activeElement = NEW_FILE_FIELD;
+          charIndex = 0;
+          charBuffer[charIndex] = 0;
+          box_x = (NewFileField.topleftcorner() >> 16); 
+          box_y = (NewFileField.topleftcorner());
+          tft.fillRect(box_x + 4, box_y + 7, 158, 18, TFT_DARKERGREY);
+          if(!keyboardOnScreen)drawKeyboard();
+        }
+        break; 
       }
     }
 
@@ -1057,6 +1066,21 @@ void Display_Task(void *arg){
               drawHalf();
               break;
             }
+
+            case NEW_FILE_FIELD:
+            {
+              String path = "/";
+              path.concat(charBuffer);
+              path.concat(".jsonl");
+              writeFile(LittleFS, path.c_str(), " ");
+              studentlistNum = listDir(LittleFS, "/", 0, studentClassLists);
+              tft.textcolor = TFT_GREEN;
+              tft.textbgcolor = TFT_DARKERGREY;
+              tft.setFreeFont(&FreeSerifItalic9pt7b);
+              tft.drawString("#Success. New class list created", 43, 116);
+              break;
+            }
+
             default:
               ESP_LOGE(TAG_D, "Unrecorgnised textbox clicked");
               break;

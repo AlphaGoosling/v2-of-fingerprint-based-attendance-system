@@ -167,7 +167,7 @@ TFT_eSPI_Button StdNoField;
 TFT_eSPI_Button EnterFingerprintButton;
 TFT_eSPI_Button AddStudentButton;
 TFT_eSPI_Button AddFileButton;
-TFT_eSPI_Button newFileField;
+TFT_eSPI_Button NewFileField;
 
 
 char keyboardKeyLabels[40] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 
@@ -502,8 +502,19 @@ void drawAddFileMenu(){
   onScreen = ADD_FILE;
   tft.fillScreen(TFT_BLACK);
   tft.fillRoundRect(35, 70, 250, 65, 10, TFT_DARKERGREY);
-  newFileField.initButton(&tft, 151, 93, 234, 30, TFT_DARKERGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
-  tft.drawString("#Enter file name above", 43, 110);
+  NewFileField.initButton(&tft, 160, 93, 234, 30, TFT_DARKGREY, TFT_DARKERGREY, TFT_WHITE, " ", KEY_TEXTSIZE);
+  NewFileField.drawButton();
+  
+  tft.textcolor = TFT_GREEN;
+  tft.textbgcolor = TFT_DARKERGREY;
+  tft.setFreeFont(&FreeSerifItalic9pt7b);
+  tft.drawString("#Enter file name above", 43, 116);
+
+  tft.setFreeFont(&FreeSans9pt7b);
+  BackButton.initButton(&tft, 275, 455, 60, 30, TFT_DARKGREY, 0xf9c7, TFT_WHITE, "Back", KEY_TEXTSIZE);
+  BackButton.drawButton();
+
+  drawKeyboard();
 }
 
 
@@ -802,40 +813,6 @@ u8_t listDir(fs::FS &fs, const char *dirname, uint8_t levels, char Buffer[][16])
   return fileNum; //return total number of files in directory
 }
 
-void createDir(fs::FS &fs, const char *path) {
-  Serial.printf("Creating Dir: %s\n", path);
-  if (fs.mkdir(path)) {
-    Serial.println("Dir created");
-  } else {
-    Serial.println("mkdir failed");
-  }
-}
-
-void removeDir(fs::FS &fs, const char *path) {
-  Serial.printf("Removing Dir: %s\n", path);
-  if (fs.rmdir(path)) {
-    Serial.println("Dir removed");
-  } else {
-    Serial.println("rmdir failed");
-  }
-}
-
-void readFile(fs::FS &fs, const char *path) {
-  Serial.printf("Reading file: %s\n", path);
-
-  fs::File file = fs.open(path);
-  if (!file) {
-    Serial.println("Failed to open file for reading");
-    return;
-  }
-
-  Serial.print("Read from file: ");
-  while (file.available()) {
-    Serial.write(file.read());
-  }
-  file.close();
-}
-
 void writeFile(fs::FS &fs, const char *path, const char *message) {
   Serial.printf("Writing file: %s\n", path);
 
@@ -850,31 +827,6 @@ void writeFile(fs::FS &fs, const char *path, const char *message) {
     Serial.println("Write failed");
   }
   file.close();
-}
-
-void appendFile(fs::FS &fs, const char *path, const char *message) {
-  Serial.printf("Appending to file: %s\n", path);
-
-  fs::File file = fs.open(path, FILE_APPEND);
-  if (!file) {
-    Serial.println("Failed to open file for appending");
-    return;
-  }
-  if (file.print(message)) {
-    Serial.println("Message appended");
-  } else {
-    Serial.println("Append failed");
-  }
-  file.close();
-}
-
-void renameFile(fs::FS &fs, const char *path1, const char *path2) {
-  Serial.printf("Renaming file %s to %s\n", path1, path2);
-  if (fs.rename(path1, path2)) {
-    Serial.println("File renamed");
-  } else {
-    Serial.println("Rename failed");
-  }
 }
 
 void deleteFile(fs::FS &fs, const char *path) {
