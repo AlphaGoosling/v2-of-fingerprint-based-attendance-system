@@ -113,24 +113,6 @@ extern "C" void app_main()
   xTaskCreate(Network_Task, "Network", 4096, NULL, 4, &NetworkTaskHandler);
   vTaskDelay(500 / portTICK_PERIOD_MS);
   xTaskCreate(Display_Task, "Display", 4096, NULL, 3, &DisplayTaskHandler);
-
-  ///*
-  String path = "/hgguy.jsonl";
-  fs::File file = LittleFS.open(path, "r");
-  Serial.println("test: ");
-  if (!file) {
-    Serial.println("Failed to open file for reading");
-    return;
-  }
-  String test;
-  while (file.available()) {
-    test.concat(file.readString());
-    Serial.println(" in test");
-  }
-  file.close();
-  Serial.print(test);
-  //*/
-
 }
 
 /********************************************************************************************************************************************
@@ -510,10 +492,12 @@ void Display_Task(void *arg){
           }
         }
 
-        for (uint8_t i = 0; i < studentlistNum; i++) {
-          (i == fileToSaveTo) ? (tft.fillRect(42, 257 + i * 32, 5, 5, TFT_WHITE)) : (tft.fillRect(42, 257 + i * 32, 5, 5, TFT_DARKERGREY)); //radiobutton
-        } 
-
+        if(!keyboardOnScreen){
+          for (uint8_t i = 0; i < studentlistNum; i++) {
+            (i == fileToSaveTo) ? (tft.fillRect(42, 257 + i * 32, 5, 5, TFT_WHITE)) : (tft.fillRect(42, 257 + i * 32, 5, 5, TFT_DARKERGREY)); //radiobutton
+          } 
+        }
+        
         if(AddStudentButton.justReleased()){
           tft.setFreeFont(&FreeSansBold9pt7b);
           AddStudentButton.drawButton(false); 
