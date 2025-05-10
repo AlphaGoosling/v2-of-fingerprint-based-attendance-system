@@ -566,7 +566,7 @@ u8_t enroll_storeTemplateToBuf(){
 
   Serial.println("Waiting for valid finger....");
   while (finger.getImage() != FINGERPRINT_OK) { // press down a finger take 1st image 
-    vTaskDelay(200 / portTICK_PERIOD_MS);
+    vTaskDelay(20 / portTICK_PERIOD_MS);
   }
   Serial.println("Image taken");
 
@@ -578,16 +578,16 @@ u8_t enroll_storeTemplateToBuf(){
   }
 
   Serial.println("Remove finger");
-  vTaskDelay(2000 / portTICK_PERIOD_MS);
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
   uint8_t p = 0;
   while (p != FINGERPRINT_NOFINGER) {
     p = finger.getImage();
-    vTaskDelay(200 / portTICK_PERIOD_MS);
+    vTaskDelay(20 / portTICK_PERIOD_MS);
   }
 
   Serial.println("Place same finger again, waiting....");
   while (finger.getImage() != FINGERPRINT_OK) { // press the same finger again to take 2nd image
-    vTaskDelay(200 / portTICK_PERIOD_MS);
+    vTaskDelay(20 / portTICK_PERIOD_MS);
   }
   Serial.println("Image taken");
 

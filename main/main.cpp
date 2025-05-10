@@ -113,6 +113,24 @@ extern "C" void app_main()
   xTaskCreate(Network_Task, "Network", 4096, NULL, 4, &NetworkTaskHandler);
   vTaskDelay(500 / portTICK_PERIOD_MS);
   xTaskCreate(Display_Task, "Display", 4096, NULL, 3, &DisplayTaskHandler);
+
+  ///*
+  String path = "/hgguy.jsonl";
+  fs::File file = LittleFS.open(path, "r");
+  Serial.println("test: ");
+  if (!file) {
+    Serial.println("Failed to open file for reading");
+    return;
+  }
+  String test;
+  while (file.available()) {
+    test.concat(file.readString());
+    Serial.println(" in test");
+  }
+  file.close();
+  Serial.print(test);
+  //*/
+
 }
 
 /********************************************************************************************************************************************
@@ -232,7 +250,7 @@ void Display_Task(void *arg){
           }  
         }
 
-        if(WifiSsidField.justPressed()) {
+        if(WifiSsidField.justPressed() && !keyboardOnScreen) {
           activeElement = WIFI_SSID_BOX;
           charIndex = 0;
           charBuffer[charIndex] = 0;
@@ -243,7 +261,7 @@ void Display_Task(void *arg){
           if(!keyboardOnScreen)drawKeyboard(); 
         }
 
-        if(PasswordField.justPressed()) {
+        if(PasswordField.justPressed() && !keyboardOnScreen) {
           activeElement = WIFI_PASSWORD_BOX;
           charIndex = 0;
           charBuffer[charIndex] = 0;
@@ -417,7 +435,7 @@ void Display_Task(void *arg){
         }
         
           //checking if any buttons changed state
-        if(SurnameField.justPressed()) {
+        if(SurnameField.justPressed() && !keyboardOnScreen) {
           activeElement = SURNAME_FIELD;
           charIndex = 0;
           charBuffer[charIndex] = 0;
@@ -427,7 +445,7 @@ void Display_Task(void *arg){
           if(!keyboardOnScreen)drawKeyboard(); 
         }
 
-        if(FirstNameField.justPressed()) {
+        if(FirstNameField.justPressed() && !keyboardOnScreen) {
           activeElement = FIRST_NAME_FIELD;
           charIndex = 0;
           charBuffer[charIndex] = 0;
@@ -437,7 +455,7 @@ void Display_Task(void *arg){
           if(!keyboardOnScreen)drawKeyboard();
         }
 
-        if(StdNoField.justPressed()) {
+        if(StdNoField.justPressed() && !keyboardOnScreen) {
           activeElement = STD_NO_FIELD;
           charIndex = 0;
           charBuffer[charIndex] = 0;
@@ -467,7 +485,7 @@ void Display_Task(void *arg){
             tft.setFreeFont(&FreeSans9pt7b);
             tft.drawString("Failed Try Again", 163, 205);
 
-            vTaskDelay(4000 / portTICK_PERIOD_MS);
+            vTaskDelay(3000 / portTICK_PERIOD_MS);
 
             tft.fillRect(128, 200, 170, 32, TFT_DARKERGREY);
             EnterFingerprintButton.drawButton();
@@ -508,10 +526,18 @@ void Display_Task(void *arg){
           AddStudentButton.drawButton(true); 
 
           if (newStudentSurname[0] == ' ' || newStudentFirstName[0] == ' ' || newStudentStdNo == NULL || newStudentFingerprint[0] == ' '){
-            Serial.print("newStudentSurname : ");Serial.println(newStudentSurname);
-            Serial.print("newStudentFirstName : ");Serial.println(newStudentFirstName);
-            Serial.print("newStudentStdNo : ");Serial.println(newStudentStdNo);
-            Serial.print("newStudentFingerprint : ");Serial.println((char*)newStudentFingerprint);
+            Serial.print("newStudentSurname : ");Serial.println(newStudentSurname);    // debug    // debug
+            Serial.print("newStudentFirstName : ");Serial.println(newStudentFirstName);    // debug
+            Serial.print("newStudentStdNo : ");Serial.println(newStudentStdNo);    // debug
+            Serial.print("newStudentFingerprint : ");
+            for (int i = 0; i < (512/finger.packet_len); i++) {                           // debug
+              for (int j = 0; j < finger.packet_len; j++) {
+                Serial.print("0x");                                                       // debug
+                Serial.print(newStudentFingerprint[(i * finger.packet_len) + j], HEX);
+                Serial.print(",");                                                            // debug
+              }
+              Serial.println("");                                                        // debug    // debug
+            }                                                                                 
             for(u8_t i = 0; i < 5; i++){
               tft.fillRect(28, 253 + 32 * studentlistNum, 270, 30, TFT_DARKERGREY);
               vTaskDelay(25 / portTICK_PERIOD_MS);
@@ -536,14 +562,15 @@ void Display_Task(void *arg){
             continue;
           }
 
-          JsonObject newStudent;
+          JsonDocument newStudent;
           newStudent["first_name"] = newStudentFirstName;
           newStudent["surname"] = newStudentSurname;
           newStudent["student_number"] = newStudentStdNo;
           newStudent["attended"] = false;
           JsonArray fingerprint_template = newStudent["fingerprint_template"].to<JsonArray>();
-          for(int i = 0; i < 512; i++){fingerprint_template.add(newStudentFingerprint[i]);}
-          attendance_doc.shrinkToFit();  // optional
+          for(int i = 0; i < 512; i++){
+            fingerprint_template.add(newStudentFingerprint[i]);
+          }
 
           String path = "/";
           path.concat(studentClassLists[fileToSaveTo]);
@@ -552,14 +579,19 @@ void Display_Task(void *arg){
             Serial.println("Failed to open file for writing");
             return;
           }
-          serializeJson(attendance_doc, file);
+          serializeJson(newStudent, file);
           file.println();
           file.close();
+          String test12;                                                         // debug
+          int err = serializeJson(newStudent, test12);                                 // debug
 
-          tft.textcolor = TFT_DARKGREEN;
+          Serial.println(test12);                                                 // debug
+          Serial.print("err: ");Serial.println(err);
+
+          tft.textcolor = TFT_GREEN;
           tft.textbgcolor = TFT_DARKERGREY;
           tft.setFreeFont(&FreeSerifItalic9pt7b);
-          tft.drawString("Done. Student added to chosen class list", 30, 255 + 32 * studentlistNum);
+          tft.drawString("Done.Student added to chosen class list", 24, 255 + 32 * studentlistNum);
         }
 
         if(AddFileButton.justPressed()){
@@ -932,8 +964,9 @@ void Display_Task(void *arg){
             return;
           }
           serializeJson(attendance_doc, attendance_file);
-
           attendance_file.close();
+
+          attendanceFileNum = listDir(LittleFS, "/sessions", 0, attendanceFileNames);
 
           drawRegisterAttendanceMenu();
         }
@@ -1052,11 +1085,13 @@ void Display_Task(void *arg){
             case SURNAME_FIELD:
               strncpy(newStudentSurname, charBuffer, (CHAR_LEN + 1));
               drawHalf();
+              BackButton.drawButton();
               break;
             
             case FIRST_NAME_FIELD:
               strncpy(newStudentFirstName, charBuffer, (CHAR_LEN + 1));
               drawHalf();
+              BackButton.drawButton();
               break;
 
             case STD_NO_FIELD:
@@ -1064,6 +1099,7 @@ void Display_Task(void *arg){
               String StdNo = charBuffer;
               newStudentStdNo = StdNo.toDouble();
               drawHalf();
+              BackButton.drawButton();
               break;
             }
 
