@@ -231,7 +231,6 @@ void drawKeyboard(){
   BackButton.drawButton();
 }
 
-
 void drawMainmenu(){
   onScreen = MAINMENU;
   tft.fillScreen((TFT_BLACK));
@@ -517,7 +516,6 @@ void drawAddFileMenu(){
   drawKeyboard();
 }
 
-
 void RegAttMenuMsg(u8_t activefile){
   tft.textcolor = TFT_GREEN;
   tft.textbgcolor = TFT_DARKERGREY;
@@ -532,6 +530,7 @@ void RegAttMenuMsg(u8_t activefile){
     tft.drawString(" has been loaded", 41 + textLength, 124 + 32 * studentlistNum);
   }
 }
+
 void drawHalf(){
   tft.fillRoundRect(20, 255, 280, 65 + 32 * studentlistNum, 10, TFT_DARKERGREY);
   tft.setFreeFont(&FreeSans9pt7b);
