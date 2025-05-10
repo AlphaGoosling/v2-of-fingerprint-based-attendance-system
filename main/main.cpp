@@ -526,18 +526,7 @@ void Display_Task(void *arg){
           AddStudentButton.drawButton(true); 
 
           if (newStudentSurname[0] == ' ' || newStudentFirstName[0] == ' ' || newStudentStdNo == NULL || newStudentFingerprint[0] == ' '){
-            Serial.print("newStudentSurname : ");Serial.println(newStudentSurname);    // debug    // debug
-            Serial.print("newStudentFirstName : ");Serial.println(newStudentFirstName);    // debug
-            Serial.print("newStudentStdNo : ");Serial.println(newStudentStdNo);    // debug
-            Serial.print("newStudentFingerprint : ");
-            for (int i = 0; i < (512/finger.packet_len); i++) {                           // debug
-              for (int j = 0; j < finger.packet_len; j++) {
-                Serial.print("0x");                                                       // debug
-                Serial.print(newStudentFingerprint[(i * finger.packet_len) + j], HEX);
-                Serial.print(",");                                                            // debug
-              }
-              Serial.println("");                                                        // debug    // debug
-            }                                                                                 
+                                                                      
             for(u8_t i = 0; i < 5; i++){
               tft.fillRect(28, 253 + 32 * studentlistNum, 270, 30, TFT_DARKERGREY);
               vTaskDelay(25 / portTICK_PERIOD_MS);
@@ -582,11 +571,6 @@ void Display_Task(void *arg){
           serializeJson(newStudent, file);
           file.println();
           file.close();
-          String test12;                                                         // debug
-          int err = serializeJson(newStudent, test12);                                 // debug
-
-          Serial.println(test12);                                                 // debug
-          Serial.print("err: ");Serial.println(err);
 
           tft.textcolor = TFT_GREEN;
           tft.textbgcolor = TFT_DARKERGREY;
