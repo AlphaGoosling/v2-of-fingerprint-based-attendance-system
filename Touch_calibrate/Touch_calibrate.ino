@@ -24,9 +24,9 @@ void setup() {
   tft.setRotation(0);
 
   // Calibrate the touch screen and retrieve the scaling factors
-  //touch_calibrate();
-  uint16_t calData[5] = { 896, 2082, 237, 3618, 7 };
-  tft.setTouch(calData);
+  touch_calibrate();
+  //uint16_t calData[5] = { 570, 3056, 279, 3604, 7 };
+  //tft.setTouch(calData);
 
 /*
   // Replace above line with the code sent to Serial Monitor
@@ -101,7 +101,5 @@ void touch_calibrate()
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
   tft.println("Calibration complete!");
   tft.println("Calibration code sent to Serial port.");
-
-  delay(2000);
 }
 

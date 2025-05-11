@@ -124,7 +124,7 @@ void Display_Task(void *arg){
   tft.setRotation(0);
   tft.fillScreen(TFT_BLACK);
 
-  uint16_t calData[5] = { 896, 2082, 237, 3618, 7 };
+  uint16_t calData[5] = { 570, 3056, 279, 3604, 7 };
   tft.setTouch(calData);
 
   drawMainmenu();
