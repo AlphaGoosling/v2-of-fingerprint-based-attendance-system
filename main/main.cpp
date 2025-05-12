@@ -315,6 +315,7 @@ void Display_Task(void *arg){
             continue;
           }
           finger.emptyDatabase();
+          studentIndex = 0;
           
           String path = "/";
           path.concat(studentClassLists[activeFile]);
