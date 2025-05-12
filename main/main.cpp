@@ -81,7 +81,7 @@ extern "C" void app_main()
 {
   Serial.begin(115200);
   vTaskDelay(20/portTICK_PERIOD_MS);
-  fingerprintSerial.begin(115200, SERIAL_8N1, 16, 17);
+  fingerprintSerial.begin(57600, SERIAL_8N1, 16, 17);
   vTaskDelay(20/portTICK_PERIOD_MS);
   finger.begin(57600);
   vTaskDelay(20/portTICK_PERIOD_MS);
@@ -113,6 +113,23 @@ extern "C" void app_main()
   xTaskCreate(Network_Task, "Network", 4096, NULL, 4, &NetworkTaskHandler);
   vTaskDelay(500 / portTICK_PERIOD_MS);
   xTaskCreate(Display_Task, "Display", 4096, NULL, 3, &DisplayTaskHandler);
+
+  /*                                        // for debugging purposes
+  String path = "/new.jsonl";
+  fs::File file = LittleFS.open(path, "r");
+  Serial.println("test: ");
+  if (!file) {
+    Serial.println("Failed to open file for reading");
+    return;
+  }
+  String test;
+  while (file.available()) {
+    test.concat(file.readString());
+    Serial.println(" in test");
+  }
+  file.close();
+  Serial.print(test);
+  //*/
 }
 
 /********************************************************************************************************************************************
